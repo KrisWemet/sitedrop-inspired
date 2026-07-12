@@ -1,0 +1,3 @@
+# runtime data (saved leads + generated sites)
+data/
+node_modules/
