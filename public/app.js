@@ -51,6 +51,7 @@ function route() {
   });
   if (m) return renderLead(m[1]);
   if (hash.startsWith('#/sites')) return renderSites();
+  if (hash.startsWith('#/autopilot')) return renderAutopilot();
   return renderLeads();
 }
 window.addEventListener('hashchange', route);
@@ -505,6 +506,129 @@ async function renderSites() {
       <p>Find a lead without a website and hit <b>Generate Website</b>.</p>
       <br><a class="btn" href="#/leads">Go to Lead Finder</a>
     </div>`}`;
+}
+
+// ---------- autopilot ----------
+async function renderAutopilot() {
+  view.innerHTML = '<div class="empty"><p>Loading autopilot…</p></div>';
+  let s;
+  try {
+    s = await api('/api/autopilot');
+  } catch (err) {
+    view.innerHTML = `<div class="notice">${esc(err.message)}</div>`;
+    return;
+  }
+
+  const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+  view.innerHTML = `
+    <div class="page-head">
+      <div>
+        <h1>Autopilot</h1>
+        <p>Campaigns run unattended — search, verify, enrich, build the site, draft the pitch. You just review and send.</p>
+      </div>
+      <button class="btn secondary" id="digestBtn">📬 Send digest now</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="n">${s.campaigns.filter((c) => c.enabled).length}</div><div class="l">Active campaigns</div></div>
+      <div class="stat"><div class="n">${s.caps.generationsToday}/${s.caps.dailyGenerations}</div><div class="l">Sites generated today</div></div>
+      <div class="stat"><div class="n">${s.caps.leadsPerRun}</div><div class="l">Leads worked per run</div></div>
+      <div class="stat"><div class="n">${s.tickMinutes}m</div><div class="l">Scheduler tick</div></div>
+    </div>
+
+    ${!s.mailer.configured ? `<div class="notice">Digest email is in dry-run: ${esc(s.mailer.hint || '')} ${s.digestTo ? '' : 'Also set DIGEST_TO (your address).'} Autopilot still runs — activity just stays in this dashboard.</div>` : `<p class="hint">Daily digest → ${esc(s.digestTo)} at ${s.digestHour}:00 · last sent ${fmtWhen(s.lastDigestAt)}</p>`}
+    ${!s.baseUrl ? `<p class="hint" style="margin-top:8px">Tip: set BASE_URL to your hosted dashboard URL so drafted pitches contain shareable preview links.</p>` : ''}
+
+    <div class="panel" style="margin-top:20px">
+      <h3>New Campaign</h3>
+      <form class="search-form" id="campForm" style="margin-top:14px">
+        <div class="field"><label>Business type</label><input id="cq" placeholder="e.g. plumber" required></div>
+        <div class="field"><label>City / area (real location)</label><input id="cloc" placeholder="e.g. Asheville, NC" required></div>
+        <div class="field"><label>Every</label>
+          <select id="cint"><option value="24" selected>24 h</option><option value="12">12 h</option><option value="48">48 h</option><option value="168">Weekly</option></select>
+        </div>
+        <button class="btn" id="campBtn" type="submit">Create</button>
+      </form>
+      <p class="hint">Campaigns are geocoded once at creation and use live OpenStreetMap data only — never demo data. Nothing is ever emailed to a prospect automatically.</p>
+    </div>
+
+    <div style="margin-top:20px" id="campList">
+      ${s.campaigns.length ? s.campaigns.map((c) => `
+        <div class="panel" style="margin-bottom:12px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center">
+          <div>
+            <strong style="text-transform:capitalize">${esc(c.query)}</strong> <span class="muted">near</span> ${esc(c.location)}
+            <span class="badge ${c.enabled ? 'ok' : 'demo'}" style="margin-left:8px">${c.enabled ? 'active' : 'paused'}</span>
+            <div class="hint" style="margin-top:6px">
+              every ${c.intervalHours}h · next run ${fmtWhen(c.nextRunAt)}
+              ${c.lastRun ? ` · last: ${c.lastRun.error ? '<span style="color:var(--hot)">failed — ' + esc(c.lastRun.error) + '</span>' : esc(`${c.lastRun.found} found, ${c.lastRun.generated} sites, ${c.lastRun.drafted} drafts`)}` : ' · never run'}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn small secondary" data-run="${c.id}">Run now</button>
+            <button class="btn small ghost" data-toggle="${c.id}" data-en="${c.enabled}">${c.enabled ? 'Pause' : 'Resume'}</button>
+            <button class="btn small ghost" data-del="${c.id}">Delete</button>
+          </div>
+        </div>`).join('') : '<div class="empty"><h3>No campaigns yet</h3><p>Create one above — it runs on the next scheduler tick.</p></div>'}
+    </div>
+
+    <div class="panel" style="margin-top:20px">
+      <h3>Activity</h3>
+      <ul class="datapoints" style="margin-top:10px">
+        ${s.activity.length ? s.activity.slice(0, 40).map((a) => `
+          <li class="${a.kind === 'campaign-failed' ? 'hot' : ''}">
+            <span class="muted">${fmtWhen(a.at)}</span> — ${esc(a.detail)}
+            ${a.leadId ? ` · <a href="#/lead/${a.leadId}">open lead</a>` : ''}
+          </li>`).join('') : '<li>No activity yet.</li>'}
+      </ul>
+    </div>`;
+
+  document.getElementById('campForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('campBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      await post('/api/campaigns', {
+        query: document.getElementById('cq').value,
+        location: document.getElementById('cloc').value,
+        intervalHours: Number(document.getElementById('cint').value),
+      });
+      renderAutopilot();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Create';
+      alert('Could not create campaign: ' + err.message);
+    }
+  });
+
+  document.getElementById('digestBtn').addEventListener('click', async (ev) => {
+    ev.currentTarget.disabled = true;
+    ev.currentTarget.textContent = 'Sending…';
+    try {
+      const { sent, preview } = await post('/api/autopilot/digest');
+      alert((sent.dryRun || sent.skipped ? 'Digest (dry run — mailer not configured):\n\n' : 'Digest sent!\n\n') + preview.text.slice(0, 1200));
+      renderAutopilot();
+    } catch (err) { alert('Digest failed: ' + err.message); renderAutopilot(); }
+  });
+
+  view.querySelectorAll('[data-run]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    b.innerHTML = '<span class="spinner"></span> Running…';
+    try {
+      await post(`/api/campaigns/${b.dataset.run}/run`);
+    } catch (err) { alert('Run failed: ' + err.message); }
+    renderAutopilot();
+  }));
+  view.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', async () => {
+    await patch(`/api/campaigns/${b.dataset.toggle}`, { enabled: b.dataset.en !== 'true' });
+    renderAutopilot();
+  }));
+  view.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Delete this campaign? Its leads stay in the Lead Finder.')) return;
+    await api(`/api/campaigns/${b.dataset.del}`, { method: 'DELETE' });
+    renderAutopilot();
+  }));
 }
 
 route();

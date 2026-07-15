@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from './lib/store.js';
-import { searchBusinesses, scoreLead } from './lib/osm.js';
+import { searchBusinesses, scoreLead, geocode } from './lib/osm.js';
+import { createCampaign, runCampaign, startScheduler, autopilotStatus, sendDigest, buildDigest } from './lib/autopilot.js';
 import { demoLeads } from './lib/demo-data.js';
 import { enrichLead } from './lib/enrich.js';
 import { generateSite, newSiteId, THEME_KEYS } from './lib/generator.js';
@@ -252,6 +253,31 @@ async function handlePublish(res, siteId) {
   json(res, 200, { site });
 }
 
+// ---------- autopilot ----------
+
+async function handleCampaignCreate(req, res) {
+  const body = await readBody(req);
+  const campaign = await createCampaign(body, geocode);
+  json(res, 200, { campaign });
+}
+
+async function handleCampaignPatch(req, res, id) {
+  const campaign = db.getCampaign(id);
+  if (!campaign) return json(res, 404, { error: 'Campaign not found' });
+  const body = await readBody(req);
+  const patch = { id };
+  if (body.enabled !== undefined) patch.enabled = Boolean(body.enabled);
+  if (body.intervalHours !== undefined) patch.intervalHours = Math.max(6, Number(body.intervalHours) || 24);
+  json(res, 200, { campaign: db.upsertCampaign(patch) });
+}
+
+async function handleCampaignRun(res, id) {
+  const campaign = db.getCampaign(id);
+  if (!campaign) return json(res, 404, { error: 'Campaign not found' });
+  const result = await runCampaign(campaign);
+  json(res, 200, { result });
+}
+
 function handlePackZip(res, siteId) {
   const html = db.readSiteHtml(siteId);
   const site = db.getSite(siteId);
@@ -310,6 +336,16 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/generate$/)) && req.method === 'POST') return await handleGenerate(req, res, m[1]);
     if (p === '/api/leads.csv' && req.method === 'GET') return handleCsv(res);
 
+    if (p === '/api/autopilot' && req.method === 'GET') return json(res, 200, autopilotStatus());
+    if (p === '/api/autopilot/digest' && req.method === 'POST') return json(res, 200, { sent: await sendDigest(), preview: buildDigest() });
+    if (p === '/api/campaigns' && req.method === 'GET') return json(res, 200, { campaigns: db.campaigns });
+    if (p === '/api/campaigns' && req.method === 'POST') return await handleCampaignCreate(req, res);
+    if ((m = p.match(/^\/api\/campaigns\/([\w-]+)$/)) && req.method === 'PATCH') return await handleCampaignPatch(req, res, m[1]);
+    if ((m = p.match(/^\/api\/campaigns\/([\w-]+)$/)) && req.method === 'DELETE') {
+      return db.deleteCampaign(m[1]) ? json(res, 200, { ok: true }) : json(res, 404, { error: 'Campaign not found' });
+    }
+    if ((m = p.match(/^\/api\/campaigns\/([\w-]+)\/run$/)) && req.method === 'POST') return await handleCampaignRun(res, m[1]);
+
     if (p === '/api/sites' && req.method === 'GET') {
       const sites = [...db.sites].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
       return json(res, 200, { sites, publishConfigured: isPublishConfigured() });
@@ -337,5 +373,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`\n  sitedrop-inspired running → http://localhost:${PORT}`);
   console.log(`  Dashboard               → http://localhost:${PORT}/app`);
-  console.log(`  AI copywriting          → ${process.env.ANTHROPIC_API_KEY ? 'ON (Claude)' : 'off (set ANTHROPIC_API_KEY to enable)'}\n`);
+  console.log(`  AI copywriting          → ${process.env.ANTHROPIC_API_KEY ? 'ON (Claude)' : 'off (set ANTHROPIC_API_KEY to enable)'}`);
+  console.log(`  Publishing (Vercel)     → ${process.env.VERCEL_TOKEN ? 'ON' : 'off (set VERCEL_TOKEN to enable)'}`);
+  console.log(`  Digest email (Resend)   → ${process.env.RESEND_API_KEY && process.env.DIGEST_TO ? 'ON → ' + process.env.DIGEST_TO : 'off (set RESEND_API_KEY, OUTREACH_FROM, DIGEST_TO)'}`);
+  console.log(`  Autopilot scheduler     → ON (tick every 15 min; campaigns run unattended)\n`);
+  startScheduler();
 });
