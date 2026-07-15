@@ -395,7 +395,7 @@ function enrichedHtml(e) {
       <li><b>Industry</b><span style="text-transform:capitalize">${esc(e.industry)}</span></li>
       <li><b>Tagline</b><span>“${esc(e.tagline)}”</span></li>
       <li><b>About</b><span>${esc(e.about)}</span></li>
-      <li><b>Services</b><span>${e.services.map(esc).join(' · ')}</span></li>
+      <li><b>Services</b><span>${e.services.map((s) => esc(typeof s === 'string' ? s : s.name)).join(' · ')}</span></li>
     </ul>
     <h3 style="margin-top:18px">Gathered Data Points</h3>
     <ul class="datapoints">

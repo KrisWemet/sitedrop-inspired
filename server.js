@@ -153,15 +153,17 @@ async function handleVerify(res, leadId) {
   const lead = db.getLead(leadId);
   if (!lead) return json(res, 404, { error: 'Lead not found' });
   const verification = await verifyLead(lead);
+  // Re-read after the (multi-second) network verify so the patch is computed
+  // against current state, not a stale snapshot.
+  const fresh = db.getLead(leadId) || lead;
   const patch = { verification };
-  // If verification discovered a live site, un-flag the lead and re-score it.
   if (verification.outcome === 'possible-site-found' && verification.foundUrl) {
     patch.hasWebsite = true;
     patch.website = verification.foundUrl;
-    patch.score = scoreLead({ ...lead, hasWebsite: true });
-  } else if (['dead-site', 'social-only'].includes(verification.outcome) && lead.hasWebsite) {
+    patch.score = scoreLead({ ...fresh, hasWebsite: true });
+  } else if (['dead-site', 'social-only'].includes(verification.outcome) && fresh.hasWebsite) {
     patch.hasWebsite = false;
-    patch.score = scoreLead({ ...lead, hasWebsite: false });
+    patch.score = scoreLead({ ...fresh, hasWebsite: false });
   }
   const updated = db.updateLead(leadId, patch);
   json(res, 200, { lead: updated });

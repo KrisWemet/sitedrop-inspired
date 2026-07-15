@@ -77,3 +77,37 @@ test('leads with no phone/email/address still generate a valid page', async () =
   assert.ok(!html.includes('undefined'));
   assert.ok(!html.includes('null,'));
 });
+
+test('JSON-LD and meta are identical across all four themes (parity)', async () => {
+  const profile = await enrichLead(lead);
+  const extract = (html) => {
+    const scripts = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].map((m) => m[1]);
+    const title = html.match(/<title>(.*?)<\/title>/)[1];
+    const desc = html.match(/<meta name="description" content="(.*?)">/)[1];
+    return JSON.stringify({ scripts, title, desc });
+  };
+  const outputs = ['warm', 'elegant', 'bold', 'clean'].map((t) => extract(generateSite(lead, profile, t).html));
+  for (const out of outputs.slice(1)) assert.equal(out, outputs[0]);
+});
+
+test('two same-industry businesses get different copy (seeded variation)', async () => {
+  const other = { ...lead, id: 'lead_test_zz', name: 'Velvet Room Beauty Bar' };
+  const [a, b] = [await enrichLead(lead), await enrichLead(other)];
+  const differs = a.tagline !== b.tagline
+    || JSON.stringify(a.services.map((s) => s.name)) !== JSON.stringify(b.services.map((s) => s.name))
+    || a.headings.valuesTitle !== b.headings.valuesTitle
+    || a.headings.servicesIntro !== b.headings.servicesIntro;
+  assert.ok(differs, 'same-industry profiles should not be clones');
+  // And each service must have a real description, not a repeated pattern.
+  for (const s of a.services) assert.ok(s.desc.length > 30);
+  const descs = a.services.map((s) => s.desc);
+  assert.equal(new Set(descs).size, descs.length, 'service descriptions must be distinct');
+});
+
+test('amenity chips from OSM extraTags are rendered', async () => {
+  const tagged = { ...lead, extraTags: { wheelchair: 'yes', outdoor_seating: 'yes', 'payment:cards': 'yes' } };
+  const profile = await enrichLead(tagged);
+  const { html } = generateSite(tagged, profile, 'elegant');
+  assert.ok(html.includes('Wheelchair accessible'));
+  assert.ok(html.includes('Outdoor seating'));
+});
