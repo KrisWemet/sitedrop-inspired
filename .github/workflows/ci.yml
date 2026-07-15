@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - name: Smoke-test the server
+        run: |
+          node server.js &
+          sleep 2
+          curl -sf -X POST localhost:3000/api/search \
+            -H 'Content-Type: application/json' \
+            -d '{"query":"restaurant","location":"demo"}' | grep -q '"noWebsite"'
+          LEAD=$(curl -sf localhost:3000/api/leads | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).leads[0].id))")
+          curl -sf -X POST "localhost:3000/api/leads/$LEAD/generate" -H 'Content-Type: application/json' -d '{}' | grep -q '"seoChecklist"'

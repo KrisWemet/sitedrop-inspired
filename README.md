@@ -20,12 +20,41 @@ npm start        # → http://localhost:3000
    parsed opening hours, industry classification (11 categories), gathered data points,
    and ready-to-use positioning copy — tagline, about text, services, value props.
 
-3. **Generate Website** — builds a complete, responsive, professionally designed
+3. **Verify before you pitch** — the no-website flag comes from map data, so one
+   click verifies it: probes the listed website (dead sites and parked domains get
+   re-flagged hot), detects Facebook/Instagram-only "websites", and DNS+HTTP-probes
+   likely domains guessed from the business name so you don't pitch someone whose
+   site simply isn't mapped.
+
+4. **Generate Website** — builds a complete, responsive, professionally designed
    one-page site from the gathered data: sticky nav, hero with call CTA, about +
-   at-a-glance card, services grid, "why choose us", opening hours, and a contact band
-   with map link. Four themes (Warm / Elegant / Bold / Clean), auto-matched to the
-   industry and switchable per generation. Live preview in-tab; each site is one
-   self-contained HTML file you can download and host anywhere.
+   at-a-glance card, services grid, "why choose us", opening hours, FAQ, and a
+   contact band with map link. Four themes (Warm / Elegant / Bold / Clean),
+   auto-matched to the industry and switchable per generation. Live preview in-tab;
+   each site is one self-contained HTML file you can download and host anywhere.
+
+5. **Extreme SEO + AI optimization, baked into every site** — each generated page
+   ships with:
+   - **JSON-LD structured data**: `LocalBusiness` subtype (schema.org/Plumber,
+     /Bakery, /HairSalon, …45+ mappings) with `openingHoursSpecification`, geo
+     coordinates, offer catalog; `FAQPage`; `WebPage` with **speakable** markup for
+     voice/AI assistants
+   - **Local keyword weaving** ("plumber in Milltown, OR", "… near me") through the
+     title, meta description, headings, and copy
+   - Open Graph + Twitter cards, geo meta tags (`geo.position`, `ICBM`,
+     `geo.region`), tuned robots directives
+   - An on-page **FAQ section** mirrored in FAQPage schema (answer-engine bait)
+   - Semantic HTML5, single h1, zero render-blocking external resources
+   - A downloadable **deploy pack (.zip)**: `index.html` + `robots.txt` that
+     explicitly welcomes AI crawlers (GPTBot, ClaudeBot, PerplexityBot, …) +
+     `sitemap.xml` + **`llms.txt`** (a plain-language business brief for AI
+     assistants)
+   - A per-site **SEO/AEO report** in the dashboard showing everything baked in
+
+6. **Work the pipeline** — pipeline statuses (new → contacted → pitched → won/lost),
+   per-lead notes, one-click **pitch email drafts** (references their missing site,
+   AI-search invisibility, and the preview link; `mailto:` ready), and CSV export of
+   all leads.
 
 ## Usage
 
@@ -51,10 +80,15 @@ PORT=8080 npm start              # custom port
 | `/api/search` | POST | `{query, location, radiusKm}` → leads with no-website flags & scores |
 | `/api/leads` | GET | all saved leads + recent searches |
 | `/api/leads/:id` | GET | one lead |
+| `/api/leads/:id` | PATCH | `{status?, notes?}` — pipeline status + notes |
 | `/api/leads/:id/enrich` | POST | gather info → prospect profile |
+| `/api/leads/:id/verify` | POST | verify web presence (dead/social-only/domain probing) |
 | `/api/leads/:id/generate` | POST | `{theme?}` → build the website (auto-enriches if needed) |
+| `/api/leads/:id/outreach` | POST | draft a pitch email (auto-generates the site if needed) |
+| `/api/leads.csv` | GET | export all leads as CSV |
 | `/api/sites` | GET | all generated sites |
 | `/sites/:id.html` | GET | the generated website (`?download` for attachment) |
+| `/sites/:id/pack.zip` | GET | deploy pack: index.html + robots.txt + sitemap.xml + llms.txt |
 
 ## Project layout
 
