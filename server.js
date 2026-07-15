@@ -13,6 +13,7 @@ import { verifyLead } from './lib/verify.js';
 import { buildOutreach } from './lib/outreach.js';
 import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
 import { buildZip } from './lib/zip.js';
+import { publishSite, isPublishConfigured } from './lib/publish.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -203,8 +204,12 @@ async function handleOutreach(req, res, leadId) {
     });
   }
 
+  // A published site gives the pitch a real URL; otherwise use the local preview.
+  const published = db.getSite(siteId)?.published;
   const host = req.headers.host || `localhost:${PORT}`;
-  const previewUrl = `http://${host}/sites/${siteId}.html  (replace with your hosted URL before sending)`;
+  const previewUrl = published
+    ? published.url
+    : `http://${host}/sites/${siteId}.html  (replace with your hosted URL before sending)`;
   const outreach = await buildOutreach(lead, enrichment, previewUrl);
   const updated = db.updateLead(leadId, { enrichment, siteId, outreach });
   json(res, 200, { lead: updated });
@@ -228,6 +233,21 @@ function handleCsv(res) {
     'Content-Disposition': 'attachment; filename="sitespark-leads.csv"',
   });
   res.end(csv);
+}
+
+async function handlePublish(res, siteId) {
+  const site = db.getSite(siteId);
+  const html = db.readSiteHtml(siteId);
+  if (!site || !html) return json(res, 404, { error: 'Site not found' });
+  if (!isPublishConfigured()) {
+    return json(res, 400, {
+      error: 'Publishing is not configured. Create a token at vercel.com/account/tokens, then restart with VERCEL_TOKEN=... npm start',
+    });
+  }
+  const published = await publishSite(site, html);
+  site.published = published;
+  db.addSite(site);
+  json(res, 200, { site });
 }
 
 function handlePackZip(res, siteId) {
@@ -290,7 +310,14 @@ const server = http.createServer(async (req, res) => {
 
     if (p === '/api/sites' && req.method === 'GET') {
       const sites = [...db.sites].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
-      return json(res, 200, { sites });
+      return json(res, 200, { sites, publishConfigured: isPublishConfigured() });
+    }
+    if ((m = p.match(/^\/api\/sites\/([\w-]+)\/publish$/)) && req.method === 'POST') return await handlePublish(res, m[1]);
+    if ((m = p.match(/^\/api\/sites\/([\w-]+)$/)) && req.method === 'GET') {
+      const site = db.getSite(m[1]);
+      return site
+        ? json(res, 200, { site, publishConfigured: isPublishConfigured() })
+        : json(res, 404, { error: 'Site not found' });
     }
     if ((m = p.match(/^\/sites\/([\w-]+)\.html$/))) return handleSiteHtml(res, m[1], url.searchParams.has('download'));
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return handlePackZip(res, m[1]);

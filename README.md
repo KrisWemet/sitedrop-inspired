@@ -68,8 +68,16 @@ npm start        # → http://localhost:3000
   the built-in industry templates (model override via `CLAUDE_MODEL`, default
   `claude-sonnet-5`).
 
+- **One-click publishing (Vercel):** create a token at
+  [vercel.com/account/tokens](https://vercel.com/account/tokens) and start with
+  `VERCEL_TOKEN` set. Every generated site gets a **🚀 Publish live** button that
+  deploys it (with robots.txt, sitemap.xml, and llms.txt) to its own Vercel project —
+  `business-name.vercel.app` — and outreach drafts automatically switch to the live
+  URL. Optional `VERCEL_TEAM_ID` for team scopes.
+
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... npm start
+VERCEL_TOKEN=... npm start       # enables 🚀 Publish live
 PORT=8080 npm start              # custom port
 ```
 
@@ -89,6 +97,7 @@ PORT=8080 npm start              # custom port
 | `/api/sites` | GET | all generated sites |
 | `/sites/:id.html` | GET | the generated website (`?download` for attachment) |
 | `/sites/:id/pack.zip` | GET | deploy pack: index.html + robots.txt + sitemap.xml + llms.txt |
+| `/api/sites/:id/publish` | POST | deploy the site to Vercel (needs `VERCEL_TOKEN`) |
 
 ## Project layout
 

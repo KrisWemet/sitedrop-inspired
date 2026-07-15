@@ -194,7 +194,11 @@ async function renderLead(id) {
     view.innerHTML = `<div class="notice">${esc(err.message)}</div>`;
     return;
   }
-  drawLead(lead);
+  let site = null, publishConfigured = false;
+  if (lead.siteId) {
+    try { ({ site, publishConfigured } = await api('/api/sites/' + lead.siteId)); } catch { /* site file may be gone */ }
+  }
+  drawLead(lead, { site, publishConfigured });
 }
 
 function drawLead(lead, opts = {}) {
@@ -266,7 +270,7 @@ function drawLead(lead, opts = {}) {
       </div>
       <button class="btn" id="genBtn">⚡ ${lead.siteId ? 'Regenerate Website' : 'Generate Website'}</button>
       <div id="seoArea">${opts.site?.seoChecklist ? seoChecklistHtml(opts.site) : ''}</div>
-      <div id="previewArea">${lead.siteId ? previewHtml(lead.siteId) : ''}</div>
+      <div id="previewArea">${lead.siteId ? previewHtml(lead.siteId, opts.site, opts.publishConfigured) : ''}</div>
     </div>
 
     <div class="panel" style="margin-top:22px" id="outreachPanel">
@@ -325,6 +329,21 @@ function drawLead(lead, opts = {}) {
       btn.disabled = false;
       btn.textContent = '✉️ Draft Pitch Email';
       alert('Outreach draft failed: ' + err.message);
+    }
+  });
+
+  document.getElementById('publishBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Publishing…';
+    try {
+      const { site } = await post(`/api/sites/${btn.dataset.site}/publish`);
+      const { lead: fresh } = await api('/api/leads/' + lead.id);
+      drawLead(fresh, { ...opts, site, publishConfigured: true });
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '🚀 Publish live';
+      alert('Publish failed: ' + err.message);
     }
   });
 
@@ -398,15 +417,18 @@ async function enrich(id) {
   }
 }
 
-function previewHtml(siteId) {
+function previewHtml(siteId, site, publishConfigured) {
   const url = `/sites/${siteId}.html`;
+  const published = site?.published;
   return `
+    ${published ? `<div class="notice" style="background:var(--ok-soft);border-color:rgba(46,204,113,0.35);color:var(--ok)">🌐 Live at <a href="${esc(published.url)}" target="_blank" rel="noopener" style="color:inherit;font-weight:700">${esc(published.url)}</a> — outreach drafts now use this URL.</div>` : ''}
     <div class="preview-bar">
-      <span class="url">${location.origin}${url}</span>
+      <span class="url">${published ? esc(published.url) : location.origin + url}</span>
       <span style="display:flex;gap:8px;flex-wrap:wrap">
         <a class="btn small secondary" href="${url}" target="_blank" rel="noopener">Open full tab ↗</a>
         <a class="btn small ghost" href="${url}?download" download>Download HTML</a>
-        <a class="btn small accent" href="/sites/${siteId}/pack.zip" download title="index.html + robots.txt + sitemap.xml + llms.txt">⤓ Deploy pack (.zip)</a>
+        <a class="btn small ghost" href="/sites/${siteId}/pack.zip" download title="index.html + robots.txt + sitemap.xml + llms.txt">⤓ Deploy pack</a>
+        <button class="btn small accent" id="publishBtn" data-site="${siteId}" title="${publishConfigured ? 'Deploy to Vercel — the prospect gets a real URL' : 'Set VERCEL_TOKEN to enable one-click publishing'}">${published ? '↻ Republish' : '🚀 Publish live'}</button>
       </span>
     </div>
     <iframe class="preview-frame" src="${url}" title="Generated website preview"></iframe>`;
@@ -469,6 +491,7 @@ async function renderSites() {
             <h3>${esc(s.businessName)}</h3>
             <div class="meta">${esc(s.category)}${s.city ? ' · ' + esc(s.city) : ''} · ${esc(s.theme)} theme · ${(s.bytes / 1024).toFixed(0)} KB</div>
             ${s.seoChecklist ? `<div class="meta">SEO/AEO: ${s.seoChecklist.filter((i) => i.ok).length}/${s.seoChecklist.length} optimizations</div>` : ''}
+            ${s.published ? `<div class="meta">🌐 <a href="${esc(s.published.url)}" target="_blank" rel="noopener">${esc(s.published.url.replace('https://', ''))}</a></div>` : ''}
             <div class="actions">
               <a class="btn small secondary" href="/sites/${s.id}.html" target="_blank" rel="noopener">Open ↗</a>
               <a class="btn small ghost" href="/sites/${s.id}/pack.zip" download>Deploy pack</a>
