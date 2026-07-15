@@ -1,8 +1,9 @@
 # SiteSpark (sitedrop-inspired)
 
 A zero-dependency Node.js app that recreates the sitedrop.ai loop: find local
-businesses **without websites** → gather their info → generate an SEO/AEO-optimized
-website → draft outreach. No build step, no `npm install`, no framework.
+businesses **without websites** → verify → gather their info → generate an
+SEO/AEO-optimized website → draft outreach → publish — plus an Autopilot that
+runs the whole pipeline unattended. No build step, no `npm install`, no framework.
 
 ## Commands
 
@@ -10,8 +11,15 @@ website → draft outreach. No build step, no `npm install`, no framework.
 npm start        # serve on http://localhost:3000 (dashboard at /app)
 npm test         # node:test suite in test/
 PORT=8080 npm start
-ANTHROPIC_API_KEY=... npm start   # enables Claude copywriting + AI outreach drafts
 ```
+
+Optional env (each feature degrades gracefully when unset):
+`ANTHROPIC_API_KEY` (Claude copywriting + AI pitch drafts, `CLAUDE_MODEL` to
+override), `VERCEL_TOKEN`/`VERCEL_TEAM_ID` (one-click publish),
+`RESEND_API_KEY` + `OUTREACH_FROM` + `DIGEST_TO` (daily digest email,
+`DIGEST_HOUR` default 8), `BASE_URL` (hosted dashboard URL used in drafted
+pitch links), `AUTOPILOT_MAX_PER_RUN` (default 5),
+`AUTOPILOT_DAILY_GEN_CAP` (default 20).
 
 ## How to verify changes end-to-end
 
@@ -62,7 +70,29 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   no-website leads.
 - `lib/outreach.js` — pitch email drafts (template or Claude).
 - `lib/zip.js` — minimal store-only ZIP writer for the deploy pack.
-- `public/app.js` — vanilla-JS hash-routed SPA (#/leads, #/lead/:id, #/sites).
+- `lib/publish.js` — Vercel REST deploys; slug = name+city+id-suffix
+  (collision-safe).
+- `lib/mailer.js` — Resend via plain fetch. ONLY sends the operator digest;
+  pitch emails are never auto-sent (ESP AUP + jurisdictional law).
+- `lib/autopilot.js` — campaigns (geocoded once at creation), chained-
+  setTimeout scheduler with overlap guard, per-run + daily caps, activity
+  log, daily digest builder. Calls `searchBusinesses` directly — a live-API
+  failure is a logged failed run, never a demo-data substitution.
+- `public/app.js` — vanilla-JS hash-routed SPA (#/leads, #/lead/:id, #/sites,
+  #/autopilot).
+
+## Generator design system (lib/generator.js)
+
+Section renderers driven by per-theme recipes: hero composition
+(centered/split/diagonal/minimal), services layout (cards/numbered/twocol,
+seed-picked from the theme's allowed list via `profile.layoutSeed`), brand
+treatment, typographic tokens, abstract per-industry-group SVG motifs
+(6 groups; keep them abstract — literal clip-art reads worse than nothing).
+The SEO head (meta + JSON-LD) is one code path for all themes — there is a
+parity test asserting identical structured data across themes; keep it green.
+Copy comes from the seeded knowledge base in enrich.js (per-service
+descriptions, 5 taglines/values per industry, heading variants) — never add
+copy that repeats an identical sentence pattern across items.
 
 ## Invariants
 
@@ -72,6 +102,11 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
 - All business data rendered into HTML goes through the local `esc()` helpers
   (XSS: business names come from OSM, i.e. the public internet).
 - Demo leads are fictional and must be labeled as such in UI and never
-  trigger real network probes.
+  trigger real network probes. Autopilot must never touch demo data.
+- **No prospect email is ever sent automatically.** The mailer sends the
+  operator digest only; outreach stays draft + one-click manual send. The
+  sent-log (`data/sent-log.jsonl`) is append-only and separate from db.json.
 - Site/lead ids are validated (`[\w-]+` routes, regex in `readSiteHtml`)
   before touching the filesystem.
+- db.json writes are atomic (tmp + rename, .bak kept). Don't reintroduce
+  direct `writeFileSync` on the live path.

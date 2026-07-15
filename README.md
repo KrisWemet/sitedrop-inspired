@@ -56,6 +56,16 @@ npm start        # → http://localhost:3000
    AI-search invisibility, and the preview link; `mailto:` ready), and CSV export of
    all leads.
 
+7. **Autopilot** — save a campaign ("plumbers near Asheville, every 24h") and the
+   whole pipeline runs unattended: search → verify → enrich → generate the website →
+   draft the pitch. A daily **digest email** (via Resend) tells you which pitches are
+   ready to send and which contacted leads need follow-up. Guardrails by design:
+   campaigns are geocoded once at creation, live-API failures never fall back to demo
+   data, per-run and daily generation caps bound API spend, and **no prospect is ever
+   emailed automatically** — cold sends stay a human decision (most email providers'
+   acceptable-use policies, and several countries' laws, prohibit automated cold email
+   to scraped addresses). Every generated site awaits your one-click review.
+
 ## Usage
 
 - Open **http://localhost:3000** for the landing page, or **/app** for the dashboard.
@@ -75,9 +85,15 @@ npm start        # → http://localhost:3000
   `business-name.vercel.app` — and outreach drafts automatically switch to the live
   URL. Optional `VERCEL_TEAM_ID` for team scopes.
 
+- **Daily digest email:** set `RESEND_API_KEY`, `OUTREACH_FROM` (verified sender),
+  and `DIGEST_TO` (your inbox). Optional `DIGEST_HOUR` (default 8). Without these,
+  autopilot still runs — activity just stays in the dashboard.
+
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... npm start
 VERCEL_TOKEN=... npm start       # enables 🚀 Publish live
+RESEND_API_KEY=... OUTREACH_FROM=you@yourdomain.com DIGEST_TO=you@gmail.com npm start
+BASE_URL=https://your-host npm start   # drafted pitches use real links
 PORT=8080 npm start              # custom port
 ```
 
@@ -98,6 +114,11 @@ PORT=8080 npm start              # custom port
 | `/sites/:id.html` | GET | the generated website (`?download` for attachment) |
 | `/sites/:id/pack.zip` | GET | deploy pack: index.html + robots.txt + sitemap.xml + llms.txt |
 | `/api/sites/:id/publish` | POST | deploy the site to Vercel (needs `VERCEL_TOKEN`) |
+| `/api/campaigns` | GET/POST | list / create autopilot campaigns |
+| `/api/campaigns/:id` | PATCH/DELETE | pause/resume/retime or delete a campaign |
+| `/api/campaigns/:id/run` | POST | run a campaign immediately |
+| `/api/autopilot` | GET | scheduler status, caps, activity log |
+| `/api/autopilot/digest` | POST | build (and send, if configured) the digest now |
 
 ## Project layout
 

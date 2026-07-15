@@ -1,8 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createCampaign, runCampaign, buildDigest } from '../lib/autopilot.js';
-import { mailerStatus, sendMail } from '../lib/mailer.js';
-import { db } from '../lib/store.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+// Isolate this file's writes in a throwaway data dir (must be set before the
+// store module loads, hence the dynamic imports).
+process.env.SITESPARK_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'sitespark-test-'));
+const { createCampaign, runCampaign, buildDigest } = await import('../lib/autopilot.js');
+const { mailerStatus, sendMail } = await import('../lib/mailer.js');
+const { db } = await import('../lib/store.js');
 
 const fakeGeocode = async () => ({ lat: 44.0, lon: -123.0, city: 'Testville', state: 'OR', displayName: 'Testville, OR' });
 
