@@ -19,7 +19,8 @@ override), `VERCEL_TOKEN`/`VERCEL_TEAM_ID` (one-click publish),
 `RESEND_API_KEY` + `OUTREACH_FROM` + `DIGEST_TO` (daily digest email,
 `DIGEST_HOUR` default 8), `BASE_URL` (hosted dashboard URL used in drafted
 pitch links), `AUTOPILOT_MAX_PER_RUN` (default 5),
-`AUTOPILOT_DAILY_GEN_CAP` (default 20).
+`AUTOPILOT_DAILY_GEN_CAP` (default 20), `PEXELS_API_KEY` (licensed stock
+photos), `GOOGLE_PLACES_API_KEY` (storefront photo, preview only).
 
 ## How to verify changes end-to-end
 
@@ -70,6 +71,12 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   no-website leads.
 - `lib/outreach.js` — pitch email drafts (template or Claude).
 - `lib/zip.js` — minimal store-only ZIP writer for the deploy pack.
+- `lib/images.js` — photo pipeline. Sources: `client` (uploads, live-site
+  source of truth), `pexels` (licensed stock, allowed live), `places`
+  (Google storefront, PREVIEW ONLY — `selectImages(lead, 'live')` strips it
+  and the tests assert this; never weaken that). Preview embeds data URIs;
+  live mode (`generateSite(..., {mode:'live', imageMode:'files'})`) ships
+  files under `images/`. An `<img>` renders only when bytes exist on disk.
 - `lib/publish.js` — Vercel REST deploys; slug = name+city+id-suffix
   (collision-safe).
 - `lib/mailer.js` — Resend via plain fetch. ONLY sends the operator digest;

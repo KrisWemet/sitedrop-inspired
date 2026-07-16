@@ -15,6 +15,7 @@ import { buildOutreach } from './lib/outreach.js';
 import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
 import { buildZip } from './lib/zip.js';
 import { publishSite, isPublishConfigured } from './lib/publish.js';
+import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, deleteImage, readImageBytes } from './lib/images.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -36,12 +37,12 @@ function json(res, status, body) {
   res.end(payload);
 }
 
-function readBody(req) {
+function readBody(req, limit = 1e6) {
   return new Promise((resolve, reject) => {
     let data = '';
     req.on('data', (chunk) => {
       data += chunk;
-      if (data.length > 1e6) { reject(new Error('Body too large')); req.destroy(); }
+      if (data.length > limit) { reject(new Error('Body too large')); req.destroy(); }
     });
     req.on('end', () => {
       try { resolve(data ? JSON.parse(data) : {}); }
@@ -238,19 +239,80 @@ function handleCsv(res) {
   res.end(csv);
 }
 
+// Live output (publish + deploy pack) is regenerated in 'live' mode:
+// client/stock images ship as real files; Places storefront photos are
+// preview-only and never leave the dashboard.
+async function buildLiveSite(site) {
+  const lead = db.getLead(site.leadId);
+  if (!lead) return null;
+  const enrichment = lead.enrichment || await enrichLead(lead);
+  return generateSite(lead, enrichment, site.theme, { mode: 'live', imageMode: 'files' });
+}
+
 async function handlePublish(res, siteId) {
   const site = db.getSite(siteId);
-  const html = db.readSiteHtml(siteId);
-  if (!site || !html) return json(res, 404, { error: 'Site not found' });
+  if (!site) return json(res, 404, { error: 'Site not found' });
   if (!isPublishConfigured()) {
     return json(res, 400, {
       error: 'Publishing is not configured. Create a token at vercel.com/account/tokens, then restart with VERCEL_TOKEN=... npm start',
     });
   }
-  const published = await publishSite(site, html);
+  const live = await buildLiveSite(site);
+  if (!live) return json(res, 404, { error: 'Lead for this site no longer exists' });
+  const published = await publishSite(site, live.html, live.imageFiles);
   site.published = published;
   db.addSite(site);
   json(res, 200, { site });
+}
+
+// ---------- images ----------
+
+// In-memory candidate cache so "pick photo 3" doesn't refetch the search.
+const candidateCache = new Map();
+
+async function handleStockCandidates(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const enrichment = lead.enrichment || await enrichLead(lead);
+  const candidates = await stockCandidates(lead, enrichment.industry);
+  candidateCache.set(leadId, candidates);
+  json(res, 200, { candidates: candidates.map(({ candidateId, thumb, photographer, query }) => ({ candidateId, thumb, photographer, query })) });
+}
+
+async function handleStockSelect(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const { candidateId } = await readBody(req);
+  const candidate = (candidateCache.get(leadId) || []).find((c) => c.candidateId === candidateId);
+  if (!candidate) return json(res, 400, { error: 'Candidate expired. Fetch stock photos again.' });
+  const image = await attachStockImage(lead, candidate);
+  const updated = db.updateLead(leadId, { images: [...(lead.images || []), image] });
+  json(res, 200, { lead: updated });
+}
+
+async function handleStorefront(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const image = await fetchStorefront(lead);
+  const updated = db.updateLead(leadId, { images: [...(lead.images || []), image] });
+  json(res, 200, { lead: updated });
+}
+
+async function handleImageUpload(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const body = await readBody(req, 12e6); // base64 of up to ~8MB image
+  const image = attachClientImage(lead, body);
+  const updated = db.updateLead(leadId, { images: [...(lead.images || []), image] });
+  json(res, 200, { lead: updated });
+}
+
+function handleImageDelete(res, leadId, imageId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  if (!deleteImage(lead, imageId)) return json(res, 404, { error: 'Image not found' });
+  const updated = db.updateLead(leadId, { images: (lead.images || []).filter((i) => i.id !== imageId) });
+  json(res, 200, { lead: updated });
 }
 
 // ---------- autopilot ----------
@@ -278,17 +340,19 @@ async function handleCampaignRun(res, id) {
   json(res, 200, { result });
 }
 
-function handlePackZip(res, siteId) {
-  const html = db.readSiteHtml(siteId);
+async function handlePackZip(res, siteId) {
   const site = db.getSite(siteId);
-  if (!html || !site) return json(res, 404, { error: 'Site not found' });
+  if (!site) return json(res, 404, { error: 'Site not found' });
+  const live = await buildLiveSite(site);
+  if (!live) return json(res, 404, { error: 'Lead for this site no longer exists' });
   const slug = (site.businessName || siteId).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   const zip = buildZip([
-    { name: 'index.html', data: html },
+    { name: 'index.html', data: live.html },
+    ...live.imageFiles.map((f) => ({ name: f.name, data: f.data })),
     { name: 'robots.txt', data: robotsTxt() },
     { name: 'sitemap.xml', data: sitemapXml() },
     { name: 'llms.txt', data: site.llms || '' },
-    { name: 'DEPLOY.md', data: `# Deploying ${site.businessName}\n\nUpload all four files to the root of any static host (Netlify, Vercel, Cloudflare Pages, GitHub Pages, shared hosting).\n\n- index.html — the website (fully self-contained)\n- robots.txt — welcomes search engines AND AI crawlers\n- sitemap.xml — search engine sitemap\n- llms.txt — plain-language business brief for AI assistants\n\nAfter deploying, update sitemap.xml's <loc> and robots.txt's Sitemap line with the real domain.\n` },
+    { name: 'DEPLOY.md', data: `# Deploying ${site.businessName}\n\nUpload everything (keeping the images/ folder) to the root of any static host (Netlify, Vercel, Cloudflare Pages, GitHub Pages, shared hosting).\n\n- index.html — the website\n- images/ — the site's photos (client and licensed stock only; Google preview photos never ship)\n- robots.txt — welcomes search engines AND AI crawlers\n- sitemap.xml — search engine sitemap\n- llms.txt — plain-language business brief for AI assistants\n\nAfter deploying, update sitemap.xml's <loc> and robots.txt's Sitemap line with the real domain.\n` },
   ]);
   res.writeHead(200, {
     'Content-Type': 'application/zip',
@@ -327,13 +391,26 @@ const server = http.createServer(async (req, res) => {
     let m;
     if ((m = p.match(/^\/api\/leads\/([\w-]+)$/)) && req.method === 'GET') {
       const lead = db.getLead(m[1]);
-      return lead ? json(res, 200, { lead }) : json(res, 404, { error: 'Lead not found' });
+      return lead ? json(res, 200, { lead, providers: imageProviders() }) : json(res, 404, { error: 'Lead not found' });
     }
     if ((m = p.match(/^\/api\/leads\/([\w-]+)$/)) && req.method === 'PATCH') return await handleLeadPatch(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/enrich$/)) && req.method === 'POST') return await handleEnrich(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/verify$/)) && req.method === 'POST') return await handleVerify(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/outreach$/)) && req.method === 'POST') return await handleOutreach(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/generate$/)) && req.method === 'POST') return await handleGenerate(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'GET') return await handleStockCandidates(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'POST') return await handleStockSelect(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/storefront$/)) && req.method === 'POST') return await handleStorefront(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images$/)) && req.method === 'POST') return await handleImageUpload(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/([\w-]+)$/)) && req.method === 'DELETE') return handleImageDelete(res, m[1], m[2]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/([\w-]+)\/raw$/)) && req.method === 'GET') {
+      const lead = db.getLead(m[1]);
+      const image = lead?.images?.find((i) => i.id === m[2]);
+      const bytes = image && readImageBytes(image);
+      if (!bytes) return json(res, 404, { error: 'Image not found' });
+      res.writeHead(200, { 'Content-Type': image.type, 'Cache-Control': 'max-age=3600' });
+      return res.end(bytes);
+    }
     if (p === '/api/leads.csv' && req.method === 'GET') return handleCsv(res);
 
     if (p === '/api/autopilot' && req.method === 'GET') return json(res, 200, autopilotStatus());
@@ -358,7 +435,7 @@ const server = http.createServer(async (req, res) => {
         : json(res, 404, { error: 'Site not found' });
     }
     if ((m = p.match(/^\/sites\/([\w-]+)\.html$/))) return handleSiteHtml(res, m[1], url.searchParams.has('download'));
-    if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return handlePackZip(res, m[1]);
+    if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
 
     // Static frontend.
     if (p === '/' || p === '/index.html') return serveStatic(res, 'index.html');

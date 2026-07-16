@@ -156,6 +156,14 @@ table.leads tr:hover td { background: var(--surface-2); }
 .seo-list li.miss { color: var(--muted); }
 .seo-panel .hint em { color: var(--ink); font-style: normal; }
 
+/* image manager */
+.img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }
+.img-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.img-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.img-card .img-meta { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 7px 9px; }
+.img-pick { cursor: pointer; transition: transform .12s ease; }
+.img-pick:hover { transform: scale(1.03); border-color: var(--primary); }
+
 /* theme picker + preview */
 .theme-row { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 18px; }
 .theme-chip { border: 1px solid var(--border); background: var(--bg-soft); color: var(--muted); border-radius: 100px; padding: 8px 18px; cursor: pointer; font-size: 0.87rem; font-weight: 600; font-family: inherit; }

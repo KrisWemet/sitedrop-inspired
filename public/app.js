@@ -188,9 +188,9 @@ function leadRow(l) {
 // ---------- lead detail ----------
 async function renderLead(id) {
   view.innerHTML = '<div class="empty"><p>Loading lead…</p></div>';
-  let lead;
+  let lead, providers = {};
   try {
-    ({ lead } = await api('/api/leads/' + id));
+    ({ lead, providers } = await api('/api/leads/' + id));
   } catch (err) {
     view.innerHTML = `<div class="notice">${esc(err.message)}</div>`;
     return;
@@ -199,7 +199,7 @@ async function renderLead(id) {
   if (lead.siteId) {
     try { ({ site, publishConfigured } = await api('/api/sites/' + lead.siteId)); } catch { /* site file may be gone */ }
   }
-  drawLead(lead, { site, publishConfigured });
+  drawLead(lead, { site, publishConfigured, providers });
 }
 
 function drawLead(lead, opts = {}) {
@@ -260,6 +260,30 @@ function drawLead(lead, opts = {}) {
             <button class="btn accent" id="enrichBtn">🧠 Gather Information</button>
           </div>`}
       </div>
+    </div>
+
+    <div class="panel" style="margin-top:22px" id="photosPanel">
+      <h3>Photos ${lead.images?.length ? `<span class="tag">${lead.images.length} attached</span>` : ''}</h3>
+      <p style="color:var(--muted);font-size:0.92rem">Previews can use licensed stock and the storefront photo from the business's Google listing. <b>Live sites ship only client uploads and licensed stock</b> — Google photos are stripped automatically at publish.</p>
+      ${lead.images?.length ? `<div class="img-grid">
+        ${lead.images.map((img) => `
+          <div class="img-card">
+            <img src="/api/leads/${lead.id}/images/${img.id}/raw" alt="${esc(img.alt || '')}">
+            <div class="img-meta">
+              <span class="badge ${img.source === 'client' ? 'ok' : img.source === 'places' ? 'demo' : 'status-contacted'}">${img.source === 'places' ? 'Google · preview only' : img.source}</span>
+              <button class="btn small ghost" data-img-del="${img.id}">✕</button>
+            </div>
+          </div>`).join('')}
+      </div>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <label class="btn small secondary" style="cursor:pointer">📁 Upload client photos
+          <input type="file" id="imgUpload" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
+        </label>
+        <button class="btn small secondary" id="stockBtn" ${opts.providers?.pexels ? '' : 'disabled title="Set PEXELS_API_KEY (free at pexels.com/api)"'}>🖼 Browse stock photos</button>
+        <button class="btn small secondary" id="storefrontBtn" ${opts.providers?.places && lead.source !== 'demo' ? '' : 'disabled title="Set GOOGLE_PLACES_API_KEY (demo leads have no real storefront)"'}>📍 Get storefront from Google</button>
+      </div>
+      <div id="stockPicker"></div>
+      ${lead.images?.length ? '<p class="hint" style="margin-top:10px">Regenerate the website below to weave the photos in.</p>' : ''}
     </div>
 
     <div class="panel" style="margin-top:22px" id="genPanel">
@@ -332,6 +356,67 @@ function drawLead(lead, opts = {}) {
       alert('Outreach draft failed: ' + err.message);
     }
   });
+
+  document.getElementById('imgUpload')?.addEventListener('change', async (ev) => {
+    for (const file of ev.target.files) {
+      const dataBase64 = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      try {
+        await post(`/api/leads/${lead.id}/images`, { filename: file.name, contentType: file.type, dataBase64 });
+      } catch (err) { alert(`Upload of ${file.name} failed: ` + err.message); }
+    }
+    renderLead(lead.id);
+  });
+
+  document.getElementById('stockBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Searching…';
+    try {
+      const { candidates } = await api(`/api/leads/${lead.id}/images/stock`);
+      document.getElementById('stockPicker').innerHTML = candidates.length ? `
+        <p class="hint" style="margin:14px 0 8px">Pick the photos that fit (Pexels license, free for commercial use):</p>
+        <div class="img-grid">
+          ${candidates.map((c) => `
+            <div class="img-card img-pick" data-pick="${esc(c.candidateId)}" title="${esc(c.query)}">
+              <img src="${esc(c.thumb)}" alt="${esc(c.query)}">
+              <div class="img-meta"><span class="hint">${esc(c.photographer || '')}</span></div>
+            </div>`).join('')}
+        </div>` : '<p class="hint">No results. Try again later.</p>';
+      document.querySelectorAll('[data-pick]').forEach((card) => card.addEventListener('click', async () => {
+        card.style.opacity = '0.4';
+        try {
+          await post(`/api/leads/${lead.id}/images/stock`, { candidateId: card.dataset.pick });
+          renderLead(lead.id);
+        } catch (err) { alert('Could not attach photo: ' + err.message); card.style.opacity = '1'; }
+      }));
+    } catch (err) { alert('Stock search failed: ' + err.message); }
+    btn.disabled = false;
+    btn.textContent = '🖼 Browse stock photos';
+  });
+
+  document.getElementById('storefrontBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Fetching…';
+    try {
+      await post(`/api/leads/${lead.id}/images/storefront`);
+      renderLead(lead.id);
+    } catch (err) {
+      alert('Storefront fetch failed: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = '📍 Get storefront from Google';
+    }
+  });
+
+  view.querySelectorAll('[data-img-del]').forEach((b) => b.addEventListener('click', async () => {
+    await api(`/api/leads/${lead.id}/images/${b.dataset.imgDel}`, { method: 'DELETE' });
+    renderLead(lead.id);
+  }));
 
   document.getElementById('publishBtn')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;

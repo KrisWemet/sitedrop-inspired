@@ -88,6 +88,14 @@ npm start        # → http://localhost:3000
 - **Daily digest email:** set `RESEND_API_KEY`, `OUTREACH_FROM` (verified sender),
   and `DIGEST_TO` (your inbox). Optional `DIGEST_HOUR` (default 8). Without these,
   autopilot still runs — activity just stays in the dashboard.
+- **Photos:** three sources with different rules. `PEXELS_API_KEY` (free at
+  pexels.com/api) unlocks a licensed-stock picker with curated per-industry
+  searches; `GOOGLE_PLACES_API_KEY` pulls the business's real **storefront photo
+  from its Google listing for the preview only** (Google's terms restrict reuse,
+  so it is stripped from every deploy pack and publish automatically); **client
+  uploads** (JPEG/PNG/WebP, per-lead, on the lead page) are the live-site source
+  of truth. Previews embed photos into the single HTML file; live output ships
+  them as real files in an `images/` folder.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... npm start
