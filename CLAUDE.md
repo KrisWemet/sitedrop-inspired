@@ -94,6 +94,16 @@ Copy comes from the seeded knowledge base in enrich.js (per-service
 descriptions, 5 taglines/values per industry, heading variants) — never add
 copy that repeats an identical sentence pattern across items.
 
+Anti-pattern rules (audited against pbakaus/impeccable's detectors, enforced
+by the "impeccable guards" test in test/generator.test.js — keep it green):
+no uppercase tracked eyebrow/kicker chips, no side-tab accent borders on
+cards or statements, no cream/beige page background, no single-font themes
+(pair display + body), no icon-tile-above-heading cards, no numbered markers
+on non-sequential content, ≤3 em-dashes in rendered body copy (AI cadence
+tell — write KB copy with commas/colons/periods), no nested cards (the
+contact CTA panel is deliberately flat), no hairline-border + wide-shadow
+combos, body text measures ≤ ~70ch.
+
 ## Invariants
 
 - **Zero runtime dependencies.** Everything uses Node built-ins and fetch.

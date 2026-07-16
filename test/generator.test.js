@@ -111,3 +111,18 @@ test('amenity chips from OSM extraTags are rendered', async () => {
   assert.ok(html.includes('Wheelchair accessible'));
   assert.ok(html.includes('Outdoor seating'));
 });
+
+// Regression guards derived from pbakaus/impeccable's anti-pattern detectors.
+test('impeccable guards: no eyebrow chips, no accent stripes, low em-dash count', async () => {
+  const profile = await enrichLead(lead);
+  for (const theme of ['warm', 'elegant', 'bold', 'clean']) {
+    const { html } = generateSite(lead, profile, theme);
+    assert.ok(!html.includes('class="eyebrow"'), `${theme}: uppercase eyebrow chips must not return`);
+    assert.ok(!html.includes('class="kicker"'), `${theme}: hero kicker chip must not return`);
+    assert.ok(!/border-(left|top|right|bottom):\s*\d+px solid var\(--accent\)/.test(html),
+      `${theme}: side-tab accent borders must not return`);
+    const body = html.slice(html.indexOf('<body'));
+    const dashes = (body.match(/—/g) || []).length;
+    assert.ok(dashes <= 3, `${theme}: em-dash overuse (${dashes} in body) is an AI cadence tell`);
+  }
+});
