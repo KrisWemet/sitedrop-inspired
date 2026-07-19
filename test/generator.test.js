@@ -127,6 +127,39 @@ test('impeccable guards: no eyebrow chips, no accent stripes, low em-dash count'
   }
 });
 
+// Typography guards mirroring impeccable's `overused-font` and `single-font`
+// detectors: every theme must lead its stacks with a non-generic, non-overused
+// system face, and must pair two distinct families (display + body).
+test('impeccable guards: no overused fonts and a real display+body pairing', async () => {
+  // impeccable's curated OVERUSED_FONTS (the characterless / AI-default faces).
+  const OVERUSED = new Set(['inter', 'roboto', 'open sans', 'lato', 'montserrat',
+    'arial', 'helvetica', 'helvetica neue', 'fraunces', 'instrument sans',
+    'instrument serif', 'geist', 'geist sans', 'geist mono', 'mona sans',
+    'plus jakarta sans', 'space grotesk', 'recoleta']);
+  // Generic tokens the detector ignores when deciding the "real" primary face.
+  const GENERIC = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy',
+    'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded',
+    '-apple-system', 'blinkmacsystemfont', 'segoe ui', 'inherit', 'initial',
+    'unset', 'revert']);
+  const primary = (stack) => stack.split(',')
+    .map((f) => f.trim().replace(/^['"]|['"]$/g, '').toLowerCase())
+    .find((f) => f && !GENERIC.has(f)) || '';
+  const profile = await enrichLead(lead);
+  for (const theme of ['warm', 'elegant', 'bold', 'clean']) {
+    const { html } = generateSite(lead, profile, theme);
+    const stacks = [...html.matchAll(/font-family:([^;}"]+)/g)]
+      .map((m) => m[1]).filter((s) => !/inherit/.test(s));
+    const primaries = new Set();
+    for (const s of stacks) {
+      const p = primary(s);
+      if (!p) continue;
+      assert.ok(!OVERUSED.has(p), `${theme}: overused font "${p}" (characterless AI-default tell)`);
+      primaries.add(p);
+    }
+    assert.ok(primaries.size >= 2, `${theme}: needs a distinct display+body pairing, got [${[...primaries]}]`);
+  }
+});
+
 test('placeholder contact data (example.com) never ships in HTML or JSON-LD', async () => {
   const fake = { ...lead, email: 'dispatch@hartleyplumbing.example.com', website: 'http://foo.example.com', hasWebsite: true };
   const profile = await enrichLead(fake);

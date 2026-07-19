@@ -117,14 +117,24 @@ descriptions, 5 taglines/values per industry, heading variants) — never add
 copy that repeats an identical sentence pattern across items.
 
 Anti-pattern rules (audited against pbakaus/impeccable's detectors, enforced
-by the "impeccable guards" test in test/generator.test.js — keep it green):
-no uppercase tracked eyebrow/kicker chips, no side-tab accent borders on
-cards or statements, no cream/beige page background, no single-font themes
-(pair display + body), no icon-tile-above-heading cards, no numbered markers
-on non-sequential content, ≤3 em-dashes in rendered body copy (AI cadence
-tell — write KB copy with commas/colons/periods), no nested cards (the
-contact CTA panel is deliberately flat), no hairline-border + wide-shadow
-combos, body text measures ≤ ~70ch.
+by the two "impeccable guards" tests in test/generator.test.js — keep them
+green): no uppercase tracked eyebrow/kicker chips, no side-tab accent borders
+on cards or statements, no cream/beige page background, no single-font themes
+(pair display + body — each theme's display and body must resolve to two
+distinct, non-generic families), no overused/AI-default fonts as the primary
+face (Helvetica, Arial, Inter, Geist, Fraunces, …; we ship only self-hosted
+system stacks led by a distinctive face — Optima/Didot, Corbel/Avenir Next,
+Lucida/SF Pro Rounded, Seravek/Iowan), no icon-tile-above-heading cards, no
+numbered markers on non-sequential content, ≤3 em-dashes in rendered body
+copy (AI cadence tell — write KB copy with commas/colons/periods), no nested
+cards (the contact CTA panel is deliberately flat), no hairline-border +
+wide-shadow combos, body text measures ≤ ~70ch.
+
+The full impeccable skill is vendored at `.claude/skills/impeccable/`
+(Apache-2.0, v3.9.1) so `/impeccable audit|critique|polish|…` and its
+detector run offline. Audit a rendered page directly with
+`node .claude/skills/impeccable/scripts/detect.mjs <file.html>` — all four
+themes must report zero findings.
 
 ## Invariants
 
