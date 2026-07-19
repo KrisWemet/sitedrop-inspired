@@ -66,6 +66,15 @@ npm start        # → http://localhost:3000
    acceptable-use policies, and several countries' laws, prohibit automated cold email
    to scraped addresses). Every generated site awaits your one-click review.
 
+8. **Close the deal** — a **proposal** page (a private, `noindex` sales document from
+   your studio to the business, with the live preview link and clear pricing), and,
+   once a lead is marked **won**, a **care plan** (the $2,000-upfront + $250/month
+   model) with **invoices**. Invoices are frozen snapshots in an append-only ledger —
+   sequential numbers that never reuse, rendered only from the frozen record so they
+   can't drift — issued only for a won client, never auto-sent. The digest rolls up
+   MRR and flags retainers due. Configure via `AGENCY_NAME`/`AGENCY_EMAIL`/…,
+   `PRICE_SETUP` (2000), `PRICE_MONTHLY` (250), `AGENCY_TAX_RATE` (0).
+
 ## Usage
 
 - Open **http://localhost:3000** for the landing page, or **/app** for the dashboard.
@@ -127,6 +136,12 @@ PORT=8080 npm start              # custom port
 | `/api/campaigns/:id/run` | POST | run a campaign immediately |
 | `/api/autopilot` | GET | scheduler status, caps, activity log |
 | `/api/autopilot/digest` | POST | build (and send, if configured) the digest now |
+| `/api/leads/:id/proposal` | POST | build the proposal page → token URL |
+| `/api/leads/:id/client` | POST | start the care plan (won leads only) |
+| `/api/leads/:id/invoice` | POST | `{kind:setup\|retainer}` → issue an invoice |
+| `/api/invoices/:number/paid` | POST | mark an invoice paid |
+| `/proposals/:token.html` | GET | the proposal (noindex, unguessable token) |
+| `/invoices/:token.html` | GET | the invoice (noindex, unguessable token) |
 
 ## Project layout
 

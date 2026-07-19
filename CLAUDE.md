@@ -20,7 +20,10 @@ override), `VERCEL_TOKEN`/`VERCEL_TEAM_ID` (one-click publish),
 `DIGEST_HOUR` default 8), `BASE_URL` (hosted dashboard URL used in drafted
 pitch links), `AUTOPILOT_MAX_PER_RUN` (default 5),
 `AUTOPILOT_DAILY_GEN_CAP` (default 20), `PEXELS_API_KEY` (licensed stock
-photos), `GOOGLE_PLACES_API_KEY` (storefront photo, preview only).
+photos), `GOOGLE_PLACES_API_KEY` (storefront photo, preview only),
+`AGENCY_NAME`/`AGENCY_EMAIL`/`AGENCY_PHONE`/`AGENCY_ADDRESS`/`AGENCY_WEBSITE`
++ `PRICE_SETUP` (2000) / `PRICE_MONTHLY` (250) / `AGENCY_TAX_RATE` (0)
+(proposals + invoices).
 
 ## How to verify changes end-to-end
 
@@ -85,6 +88,15 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   setTimeout scheduler with overlap guard, per-run + daily caps, activity
   log, daily digest builder. Calls `searchBusinesses` directly — a live-API
   failure is a logged failed run, never a demo-data substitution.
+- `lib/billing.js` — the $2k-setup + $250/mo care-plan model. Env pricing/
+  agency config, won-lead→client promotion with a recurring retainer schedule,
+  MRR, and `buildInvoiceRecord` (freezes a full snapshot: integer money, no
+  float sums). Nothing here sends anything.
+- `lib/invoice.js` / `lib/proposal.js` — self-contained HTML renderers.
+  Invoices render PURELY from the frozen ledger record (never live lead/env,
+  so a re-render can't drift); both are `noindex,nofollow` and served at
+  unguessable `inv_`/`prop_` token URLs. Proposals are explicitly agency→
+  business (letterhead, not impersonation).
 - `public/app.js` — vanilla-JS hash-routed SPA (#/leads, #/lead/:id, #/sites,
   #/autopilot).
 
@@ -123,6 +135,14 @@ combos, body text measures ≤ ~70ch.
 - **No prospect email is ever sent automatically.** The mailer sends the
   operator digest only; outreach stays draft + one-click manual send. The
   sent-log (`data/sent-log.jsonl`) is append-only and separate from db.json.
+- **Billing safety.** Invoices are issuable only for a `won` client, never
+  auto-sent. `data/invoices.jsonl` is an append-only ledger with NO `.bak`
+  rotation — its integrity model is append-only. Invoice numbers come from
+  `db.issueInvoice` (a synchronous read-max→assign→append critical section,
+  tolerant of a truncated final line); never number by array length and never
+  reissue. Payment state (`paidAt`) is mutable in db.json, keyed by number,
+  and must never mutate the frozen ledger record. Don't add a "paid" value to
+  the sales-pipeline `status`.
 - Site/lead ids are validated (`[\w-]+` routes, regex in `readSiteHtml`)
   before touching the filesystem.
 - db.json writes are atomic (tmp + rename, .bak kept). Don't reintroduce

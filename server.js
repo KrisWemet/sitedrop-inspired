@@ -16,6 +16,10 @@ import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
 import { buildZip } from './lib/zip.js';
 import { publishSite, isPublishConfigured } from './lib/publish.js';
 import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, deleteImage, readImageBytes } from './lib/images.js';
+import { pricingConfig, buildClient, buildInvoiceRecord, advanceRetainer } from './lib/billing.js';
+import { renderInvoiceHtml } from './lib/invoice.js';
+import { renderProposalHtml } from './lib/proposal.js';
+import crypto from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -208,15 +212,135 @@ async function handleOutreach(req, res, leadId) {
     });
   }
 
-  // A published site gives the pitch a real URL; otherwise use the local preview.
-  const published = db.getSite(siteId)?.published;
-  const host = req.headers.host || `localhost:${PORT}`;
-  const previewUrl = published
-    ? published.url
-    : `http://${host}/sites/${siteId}.html  (replace with your hosted URL before sending)`;
-  const outreach = await buildOutreach(lead, enrichment, previewUrl);
+  const outreach = await buildOutreach(lead, enrichment, previewUrlFor(siteId, req));
   const updated = db.updateLead(leadId, { enrichment, siteId, outreach });
   json(res, 200, { lead: updated });
+}
+
+// A published site gives a real URL; otherwise the local preview with a
+// "replace before sending" caveat. Shared by outreach and proposals.
+function previewUrlFor(siteId, req) {
+  const published = db.getSite(siteId)?.published;
+  if (published) return published.url;
+  const host = req.headers.host || `localhost:${PORT}`;
+  return `http://${host}/sites/${siteId}.html  (replace with your hosted URL before sending)`;
+}
+
+// Ensure the lead has a generated site; returns { siteId, enrichment }.
+async function ensureSite(lead) {
+  const enrichment = lead.enrichment || await enrichLead(lead);
+  let siteId = lead.siteId;
+  if (!siteId) {
+    siteId = newSiteId();
+    const { html, faqs, keywords, checklist, title, description } = generateSite(lead, enrichment, enrichment.theme);
+    db.saveSiteHtml(siteId, html);
+    db.addSite({
+      id: siteId, leadId: lead.id, businessName: lead.name, category: lead.category,
+      city: [lead.city, lead.state].filter(Boolean).join(', ') || null,
+      theme: enrichment.theme, bytes: Buffer.byteLength(html), title, description,
+      keywords, seoChecklist: checklist, llms: llmsTxt(lead, enrichment, faqs),
+      generatedAt: new Date().toISOString(),
+    });
+    db.updateLead(lead.id, { enrichment, siteId });
+  }
+  return { siteId, enrichment };
+}
+
+// ---------- proposals & billing ----------
+// Nothing here is ever emailed to a prospect — generate + return link only,
+// exactly like outreach. Invoices are issuable only for a won client.
+
+async function handleProposal(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const { siteId } = await ensureSite(lead);
+  // Unguessable token so the private proposal URL is not enumerable.
+  const token = lead.proposal?.token || 'prop_' + crypto.randomBytes(9).toString('hex');
+  const proposal = { token, generatedAt: new Date().toISOString() };
+  const updated = db.updateLead(leadId, { proposal, siteId });
+  json(res, 200, { lead: updated, url: `/proposals/${token}.html` });
+}
+
+function serveProposal(res, token) {
+  const lead = db.getLeadByProposalToken(token);
+  if (!lead || !lead.siteId) return json(res, 404, { error: 'Proposal not found' });
+  const site = db.getSite(lead.siteId);
+  const pricing = pricingConfig();
+  const previewUrl = lead.siteId ? (db.getSite(lead.siteId)?.published?.url
+    || `/sites/${lead.siteId}.html`) : '#';
+  const html = renderProposalHtml(lead, lead.enrichment || {}, site, { previewUrl, pricing });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
+}
+
+async function handleClientCreate(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  if (lead.status !== 'won') {
+    return json(res, 400, { error: 'Set the lead status to "won" before starting a care plan. (Only a business that has agreed should be billed.)' });
+  }
+  const existing = db.getClientByLead(leadId);
+  if (existing) return json(res, 200, { client: existing, lead });
+  const body = await readBody(req);
+  const pricing = pricingConfig();
+  const client = buildClient(lead, {
+    setup: body.setup ?? pricing.setup,
+    monthly: body.monthly ?? pricing.monthly,
+    currency: body.currency ?? pricing.currency,
+  });
+  db.upsertClient(client);
+  const updated = db.updateLead(leadId, { clientId: client.id });
+  db.logActivity({ kind: 'client-created', leadId, detail: `${lead.name} → care plan (${client.currency} ${client.setup} setup, ${client.monthly}/mo)` });
+  json(res, 200, { client, lead: updated });
+}
+
+async function handleInvoiceIssue(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const client = db.getClientByLead(leadId);
+  if (!client) return json(res, 400, { error: 'Start the care plan first, then issue invoices.' });
+  const body = await readBody(req);
+  const kind = body.kind === 'retainer' ? 'retainer' : 'setup';
+  const pricing = pricingConfig();
+
+  const lineItems = kind === 'retainer'
+    ? [{ description: `Website care plan — monthly (${client.businessName})`, quantity: 1, unit: client.monthly }]
+    : [{ description: `Website design & launch — ${client.businessName}`, quantity: 1, unit: client.setup }];
+
+  // Atomic issue: number assigned + record appended in one sync critical section.
+  const record = db.issueInvoice((number) => buildInvoiceRecord(number, { client, kind, lineItems, pricing }));
+
+  const patch = { invoiceNumbers: [...(client.invoiceNumbers || []), record.number] };
+  if (kind === 'retainer') Object.assign(patch, advanceRetainer(client));
+  db.upsertClient({ id: client.id, ...patch });
+  db.logActivity({ kind: 'invoice-issued', leadId, detail: `Invoice #${record.number} (${kind}) for ${client.businessName} — ${record.currency} ${record.total}` });
+  json(res, 200, { invoice: record, url: `/invoices/${record.token}.html` });
+}
+
+function serveInvoice(res, token) {
+  const rec = db.getInvoiceByToken(token);
+  if (!rec) return json(res, 404, { error: 'Invoice not found' });
+  const html = renderInvoiceHtml(rec, db.getPayment(rec.number));
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
+}
+
+function handleInvoicePaid(res, number) {
+  const n = Number(number);
+  const rec = db.readInvoiceLedger().find((r) => r.number === n);
+  if (!rec) return json(res, 404, { error: 'Invoice not found' });
+  const payment = db.markInvoicePaid(n);
+  db.logActivity({ kind: 'invoice-paid', leadId: rec.leadId, detail: `Invoice #${n} marked paid` });
+  json(res, 200, { number: n, payment });
+}
+
+function leadBilling(leadId) {
+  const client = db.getClientByLead(leadId);
+  const invoices = client ? db.invoicesForClient(client.id).map((r) => ({
+    number: r.number, token: r.token, kind: r.kind, total: r.total, currency: r.currency,
+    issuedAt: r.issuedAt, paidAt: db.getPayment(r.number)?.paidAt || null,
+  })) : [];
+  return { client, invoices };
 }
 
 function csvEscape(v) {
@@ -391,12 +515,18 @@ const server = http.createServer(async (req, res) => {
     let m;
     if ((m = p.match(/^\/api\/leads\/([\w-]+)$/)) && req.method === 'GET') {
       const lead = db.getLead(m[1]);
-      return lead ? json(res, 200, { lead, providers: imageProviders() }) : json(res, 404, { error: 'Lead not found' });
+      return lead
+        ? json(res, 200, { lead, providers: imageProviders(), pricing: pricingConfig(), billing: leadBilling(lead.id) })
+        : json(res, 404, { error: 'Lead not found' });
     }
     if ((m = p.match(/^\/api\/leads\/([\w-]+)$/)) && req.method === 'PATCH') return await handleLeadPatch(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/enrich$/)) && req.method === 'POST') return await handleEnrich(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/verify$/)) && req.method === 'POST') return await handleVerify(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/outreach$/)) && req.method === 'POST') return await handleOutreach(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/proposal$/)) && req.method === 'POST') return await handleProposal(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/client$/)) && req.method === 'POST') return await handleClientCreate(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/invoice$/)) && req.method === 'POST') return await handleInvoiceIssue(req, res, m[1]);
+    if ((m = p.match(/^\/api\/invoices\/(\d+)\/paid$/)) && req.method === 'POST') return handleInvoicePaid(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/generate$/)) && req.method === 'POST') return await handleGenerate(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'GET') return await handleStockCandidates(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'POST') return await handleStockSelect(req, res, m[1]);
@@ -436,6 +566,8 @@ const server = http.createServer(async (req, res) => {
     }
     if ((m = p.match(/^\/sites\/([\w-]+)\.html$/))) return handleSiteHtml(res, m[1], url.searchParams.has('download'));
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
+    if ((m = p.match(/^\/proposals\/([\w-]+)\.html$/))) return serveProposal(res, m[1]);
+    if ((m = p.match(/^\/invoices\/([\w-]+)\.html$/))) return serveInvoice(res, m[1]);
 
     // Static frontend.
     if (p === '/' || p === '/index.html') return serveStatic(res, 'index.html');

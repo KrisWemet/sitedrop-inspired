@@ -188,9 +188,9 @@ function leadRow(l) {
 // ---------- lead detail ----------
 async function renderLead(id) {
   view.innerHTML = '<div class="empty"><p>Loading lead…</p></div>';
-  let lead, providers = {};
+  let lead, providers = {}, pricing = {}, billing = {};
   try {
-    ({ lead, providers } = await api('/api/leads/' + id));
+    ({ lead, providers, pricing, billing } = await api('/api/leads/' + id));
   } catch (err) {
     view.innerHTML = `<div class="notice">${esc(err.message)}</div>`;
     return;
@@ -199,7 +199,7 @@ async function renderLead(id) {
   if (lead.siteId) {
     try { ({ site, publishConfigured } = await api('/api/sites/' + lead.siteId)); } catch { /* site file may be gone */ }
   }
-  drawLead(lead, { site, publishConfigured, providers });
+  drawLead(lead, { site, publishConfigured, providers, pricing, billing });
 }
 
 function drawLead(lead, opts = {}) {
@@ -304,6 +304,10 @@ function drawLead(lead, opts = {}) {
         <p style="color:var(--muted);font-size:0.92rem">Draft a personalized pitch email for this business — references their missing website, AI-search invisibility, and the preview link. ${lead.siteId ? '' : 'Generates the website first if needed.'}</p>
         <button class="btn accent" id="outreachBtn" style="margin-top:10px">✉️ Draft Pitch Email</button>
       `}
+    </div>
+
+    <div class="panel" style="margin-top:22px" id="billingPanel">
+      ${billingHtml(lead, opts)}
     </div>`;
 
   const enrichBtn = document.getElementById('enrichBtn');
@@ -416,6 +420,48 @@ function drawLead(lead, opts = {}) {
   view.querySelectorAll('[data-img-del]').forEach((b) => b.addEventListener('click', async () => {
     await api(`/api/leads/${lead.id}/images/${b.dataset.imgDel}`, { method: 'DELETE' });
     renderLead(lead.id);
+  }));
+
+  document.getElementById('proposalBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Building…';
+    try {
+      await post(`/api/leads/${lead.id}/proposal`);
+      renderLead(lead.id);
+    } catch (err) { btn.disabled = false; alert('Proposal failed: ' + err.message); }
+  });
+
+  document.getElementById('copyProposalBtn')?.addEventListener('click', async (ev) => {
+    await navigator.clipboard.writeText(location.origin + ev.currentTarget.dataset.url);
+    ev.currentTarget.textContent = '✓ Copied';
+    setTimeout(() => { const b = document.getElementById('copyProposalBtn'); if (b) b.textContent = 'Copy link'; }, 1500);
+  });
+
+  document.getElementById('createClientBtn')?.addEventListener('click', async () => {
+    const setup = Number(document.getElementById('setupAmt').value);
+    const monthly = Number(document.getElementById('monthlyAmt').value);
+    try {
+      await post(`/api/leads/${lead.id}/client`, { setup, monthly });
+      renderLead(lead.id);
+    } catch (err) { alert('Could not start care plan: ' + err.message); }
+  });
+
+  view.querySelectorAll('[data-invoice]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    b.innerHTML = '<span class="spinner"></span> Issuing…';
+    try {
+      const { url } = await post(`/api/leads/${lead.id}/invoice`, { kind: b.dataset.invoice });
+      window.open(url, '_blank');
+      renderLead(lead.id);
+    } catch (err) { b.disabled = false; alert('Invoice failed: ' + err.message); }
+  }));
+
+  view.querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      await post(`/api/invoices/${b.dataset.pay}/paid`);
+      renderLead(lead.id);
+    } catch (err) { alert('Could not mark paid: ' + err.message); }
   }));
 
   document.getElementById('publishBtn')?.addEventListener('click', async (ev) => {
@@ -552,6 +598,67 @@ function outreachHtml(lead) {
       <button class="btn small ghost" id="redraftBtn">↻ Redraft</button>
     </div>
     <p class="hint" style="margin-top:10px">The preview link points at this local server — replace it with your hosted URL (deploy pack ↑) before sending.</p>`;
+}
+
+function money(cur, amount) {
+  const sym = { USD: '$', CAD: '$', AUD: '$', EUR: '€', GBP: '£' }[cur] || '';
+  return `${sym}${Number(amount || 0).toLocaleString('en-US')}${sym ? '' : ' ' + (cur || '')}`;
+}
+
+function billingHtml(lead, opts) {
+  const pricing = opts.pricing || {};
+  const client = opts.billing?.client || null;
+  const invoices = opts.billing?.invoices || [];
+  const proposalUrl = lead.proposal ? `/proposals/${lead.proposal.token}.html` : null;
+  const cur = client?.currency || pricing.currency || 'USD';
+
+  const proposalBlock = `
+    <h3>Proposal &amp; Billing</h3>
+    ${!pricing.configured ? `<div class="notice" style="margin:8px 0">Set <code>AGENCY_NAME</code> (and optionally AGENCY_EMAIL/PHONE/ADDRESS, PRICE_SETUP, PRICE_MONTHLY) so proposals and invoices carry your details. Using placeholders for now.</div>` : ''}
+    <p style="color:var(--muted);font-size:0.92rem">A private proposal page — from ${esc(pricing.agency?.name || 'your studio')} to ${esc(lead.name)} — with the live preview link and clear ${money(cur, pricing.setup)} + ${money(cur, pricing.monthly)}/mo pricing.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn small ${proposalUrl ? 'secondary' : 'accent'}" id="proposalBtn">${proposalUrl ? '↻ Rebuild proposal' : '📄 Build proposal'}</button>
+      ${proposalUrl ? `<a class="btn small secondary" href="${proposalUrl}" target="_blank" rel="noopener">Open proposal ↗</a>
+      <button class="btn small ghost" id="copyProposalBtn" data-url="${proposalUrl}">Copy link</button>` : ''}
+    </div>`;
+
+  // The care plan / invoicing only appears once the lead is actually won —
+  // you should never be able to bill a business that hasn't agreed.
+  let planBlock;
+  if (lead.status !== 'won') {
+    planBlock = `<p class="hint" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">Mark this lead <b>won</b> (top of page) to start a care plan and issue invoices. Billing is deliberately locked until then.</p>`;
+  } else if (!client) {
+    planBlock = `
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+        <h3 style="font-size:0.98rem">Start the care plan</h3>
+        <p class="hint">Confirm the amounts you agreed with the client — these get frozen onto every invoice.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-top:10px">
+          <div class="field"><label>One-time build (${esc(cur)})</label><input id="setupAmt" type="number" min="0" value="${esc(pricing.setup)}" style="width:130px"></div>
+          <div class="field"><label>Monthly (${esc(cur)})</label><input id="monthlyAmt" type="number" min="0" value="${esc(pricing.monthly)}" style="width:110px"></div>
+          <button class="btn" id="createClientBtn">Start care plan</button>
+        </div>
+      </div>`;
+  } else {
+    const invRows = invoices.length ? invoices.map((iv) => `
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.9rem">
+        <span>#${iv.number} · ${iv.kind === 'retainer' ? 'Retainer' : 'Setup'} · ${money(iv.currency, iv.total)}</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          ${iv.paidAt ? '<span class="badge ok">paid</span>' : `<button class="btn small accent" data-pay="${iv.number}">Mark paid</button>`}
+          <a class="btn small secondary" href="/invoices/${iv.token}.html" target="_blank" rel="noopener">Open ↗</a>
+        </span>
+      </div>`).join('') : '<p class="hint">No invoices yet.</p>';
+    planBlock = `
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+        <h3 style="font-size:0.98rem">Care plan <span class="badge ${client.status === 'active' ? 'ok' : 'demo'}">${esc(client.status)}</span></h3>
+        <p class="hint">${money(cur, client.setup)} setup · ${money(cur, client.monthly)}/mo · next retainer ${client.nextRetainerAt ? new Date(client.nextRetainerAt).toLocaleDateString() : '—'}</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+          <button class="btn small secondary" data-invoice="setup">🧾 Issue setup invoice</button>
+          <button class="btn small secondary" data-invoice="retainer">🔁 Issue this month's retainer</button>
+        </div>
+        ${invRows}
+      </div>`;
+  }
+  return proposalBlock + planBlock;
 }
 
 // ---------- sites gallery ----------
