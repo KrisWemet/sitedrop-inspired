@@ -156,6 +156,11 @@ table.leads tr:hover td { background: var(--surface-2); }
 .seo-list li.miss { color: var(--muted); }
 .seo-panel .hint em { color: var(--ink); font-style: normal; }
 
+/* lead-capture (conversion) box */
+.conv-box { margin: 14px 0 4px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; background: var(--bg-soft); }
+.conv-box summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; }
+.conv-box .field input { max-width: 460px; }
+
 /* image manager */
 .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }
 .img-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }

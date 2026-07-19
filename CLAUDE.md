@@ -66,6 +66,9 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   FAQPage, WebPage+speakable), OSM hours → openingHoursSpecification parser,
   meta/OG/geo tags, keyword sets, FAQ content, robots.txt (AI crawlers
   explicitly allowed), sitemap.xml, llms.txt, and the dashboard checklist.
+  `sanitizeContacts` strips placeholder emails/websites (RFC-2606 reserved
+  domains: example.com/.org/.net, test, invalid) — `generateSite` calls it
+  FIRST so a fake contact can never reach the page or the JSON-LD.
 - `lib/generator.js` — renders the final self-contained HTML (inline CSS,
   inline SVG, no external assets, no JS). Returns `{ html, faqs, keywords,
   checklist, title, description }`. Four themes in `THEMES`.

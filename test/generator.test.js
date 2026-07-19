@@ -126,3 +126,39 @@ test('impeccable guards: no eyebrow chips, no accent stripes, low em-dash count'
     assert.ok(dashes <= 3, `${theme}: em-dash overuse (${dashes} in body) is an AI cadence tell`);
   }
 });
+
+test('placeholder contact data (example.com) never ships in HTML or JSON-LD', async () => {
+  const fake = { ...lead, email: 'dispatch@hartleyplumbing.example.com', website: 'http://foo.example.com', hasWebsite: true };
+  const profile = await enrichLead(fake);
+  const { html } = generateSite(fake, profile, 'bold');
+  assert.ok(!html.includes('example.com'), 'no example.com anywhere in the output');
+  assert.ok(!html.includes('mailto:dispatch@hartleyplumbing'), 'placeholder email is not linked');
+  // A real email still renders.
+  const real = { ...lead, email: 'hello@realbakery.co' };
+  const { html: realHtml } = generateSite(real, await enrichLead(real), 'bold');
+  assert.ok(realHtml.includes('hello@realbakery.co'));
+});
+
+test('no-JS contact form renders when a form endpoint is configured', async () => {
+  const withForm = { ...lead, cta: { formEndpoint: 'https://formspree.io/f/abc123' } };
+  const profile = await enrichLead(withForm);
+  const { html } = generateSite(withForm, profile, 'bold');
+  assert.ok(html.includes('<form class="lead-form" action="https://formspree.io/f/abc123" method="POST">'));
+  assert.ok(html.includes('name="_gotcha"'), 'honeypot present');
+  assert.ok(html.includes('name="message"'));
+  // Still zero executable JS: JSON-LD data scripts are fine, but no src
+  // scripts, no inline <script> code, and no on* event handlers.
+  assert.ok(!/<script(?![^>]*application\/ld\+json)/.test(html), 'no executable script tags');
+  assert.ok(!/\son\w+=/.test(html), 'no inline event handlers');
+});
+
+test('booking link retargets the CTA to a real external booking URL', async () => {
+  const withBooking = { ...lead, cta: { bookingUrl: 'https://calendly.com/shear-bliss' } };
+  const profile = await enrichLead(withBooking);
+  const { html } = generateSite(withBooking, profile, 'elegant');
+  assert.ok(html.includes('href="https://calendly.com/shear-bliss"'));
+  // With no booking/form, the hero CTA lands on #contact, never #services.
+  const plain = generateSite(lead, await enrichLead(lead), 'elegant').html;
+  assert.ok(plain.includes('class="btn ghost" href="#contact"'));
+  assert.ok(!plain.includes('class="btn ghost" href="#services"'), 'CTA must not dead-scroll to services');
+});

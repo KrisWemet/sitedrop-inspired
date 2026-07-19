@@ -189,6 +189,15 @@ async function handleLeadPatch(req, res, leadId) {
     patch.status = body.status;
   }
   if (body.notes !== undefined) patch.notes = String(body.notes).slice(0, 5000) || null;
+  if (body.cta !== undefined) {
+    // Conversion targets: booking link + hosted form endpoint. Store only
+    // well-formed http(s) URLs; blanks clear the field.
+    const httpUrl = (v) => (typeof v === 'string' && /^https?:\/\/\S+$/i.test(v.trim()) ? v.trim() : null);
+    patch.cta = {
+      bookingUrl: httpUrl(body.cta.bookingUrl),
+      formEndpoint: httpUrl(body.cta.formEndpoint),
+    };
+  }
   json(res, 200, { lead: db.updateLead(leadId, patch) });
 }
 

@@ -32,6 +32,12 @@ npm start        # → http://localhost:3000
    contact band with map link. Four themes (Warm / Elegant / Bold / Clean),
    auto-matched to the industry and switchable per generation. Live preview in-tab;
    each site is one self-contained HTML file you can download and host anywhere.
+   **Lead capture without JavaScript:** add a booking link (Calendly/Cal.com/Square)
+   and/or a hosted contact-form endpoint (Formspree/Basin/Web3Forms) per lead — the
+   site renders a real `<form>` that posts natively (no JS) and retargets the hero CTA
+   to real booking, so a button never dead-scrolls to a services blurb. **Placeholder
+   contact data** (`example.com` and other reserved domains) is stripped from the live
+   site and its schema automatically, so a fake email can never ship.
 
 5. **Extreme SEO + AI optimization, baked into every site** — each generated page
    ships with:

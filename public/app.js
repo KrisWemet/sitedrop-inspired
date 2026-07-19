@@ -225,6 +225,7 @@ function drawLead(lead, opts = {}) {
     <div class="detail-grid">
       <div class="panel">
         <h3>Contact & Raw Data</h3>
+        ${/@(\w+\.)?(example\.(com|org|net)|test|invalid)$/i.test(lead.email || '') ? `<div class="notice" style="margin:0 0 12px">⚠ This email looks like placeholder data — it is automatically stripped from the live site and schema so it can't ship broken. Get a real address before going live.</div>` : ''}
         <ul class="kv">
           <li><b>Phone</b><span>${esc(lead.phone || 'Not listed')}</span></li>
           <li><b>Email</b><span>${esc(lead.email || 'Not listed')}</span></li>
@@ -293,7 +294,14 @@ function drawLead(lead, opts = {}) {
         ${['warm', 'elegant', 'bold', 'clean'].map((t) => `
           <button class="theme-chip ${((opts.theme || e?.theme || 'clean') === t) ? 'selected' : ''}" data-theme="${t}">${cap(t)}</button>`).join('')}
       </div>
-      <button class="btn" id="genBtn">⚡ ${lead.siteId ? 'Regenerate Website' : 'Generate Website'}</button>
+      <details class="conv-box" ${(lead.cta?.bookingUrl || lead.cta?.formEndpoint) ? 'open' : ''}>
+        <summary>Lead capture — booking link &amp; contact form</summary>
+        <p class="hint" style="margin:8px 0">Turn the "${esc(e?.heroCta || 'Get in touch')}" button into a real booking link, and add a working contact form. Both stay JavaScript-free. Regenerate after saving.</p>
+        <div class="field"><label>Booking link (Calendly, Cal.com, Square…)</label><input id="bookingUrl" placeholder="https://calendly.com/your-business" value="${esc(lead.cta?.bookingUrl || '')}"></div>
+        <div class="field" style="margin-top:10px"><label>Contact-form endpoint (Formspree, Basin, Web3Forms…)</label><input id="formEndpoint" placeholder="https://formspree.io/f/xxxxxxx" value="${esc(lead.cta?.formEndpoint || '')}"></div>
+        <button class="btn small ghost" id="ctaSaveBtn" style="margin-top:10px">Save lead-capture settings</button>
+      </details>
+      <button class="btn" id="genBtn" style="margin-top:14px">⚡ ${lead.siteId ? 'Regenerate Website' : 'Generate Website'}</button>
       <div id="seoArea">${opts.site?.seoChecklist ? seoChecklistHtml(opts.site) : ''}</div>
       <div id="previewArea">${lead.siteId ? previewHtml(lead.siteId, opts.site, opts.publishConfigured) : ''}</div>
     </div>
@@ -421,6 +429,24 @@ function drawLead(lead, opts = {}) {
     await api(`/api/leads/${lead.id}/images/${b.dataset.imgDel}`, { method: 'DELETE' });
     renderLead(lead.id);
   }));
+
+  document.getElementById('ctaSaveBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.textContent = 'Saving…';
+    try {
+      await patch(`/api/leads/${lead.id}`, {
+        cta: {
+          bookingUrl: document.getElementById('bookingUrl').value.trim(),
+          formEndpoint: document.getElementById('formEndpoint').value.trim(),
+        },
+      });
+      btn.textContent = '✓ Saved — regenerate to apply';
+      setTimeout(() => { const b = document.getElementById('ctaSaveBtn'); if (b) b.textContent = 'Save lead-capture settings'; }, 2500);
+    } catch (err) {
+      btn.textContent = 'Save lead-capture settings';
+      alert('Could not save: ' + err.message);
+    }
+  });
 
   document.getElementById('proposalBtn')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
