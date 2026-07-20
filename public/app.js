@@ -280,7 +280,7 @@ function drawLead(lead, opts = {}) {
         <label class="btn small secondary" style="cursor:pointer">📁 Upload client photos
           <input type="file" id="imgUpload" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
         </label>
-        <button class="btn small secondary" id="stockBtn" ${opts.providers?.pexels ? '' : 'disabled title="Set PEXELS_API_KEY (free at pexels.com/api)"'}>🖼 Browse stock photos</button>
+        <button class="btn small secondary" id="stockBtn" title="${opts.providers?.pexels ? 'Pexels library (API key set)' : 'CC0 public-domain photos via Openverse — no key needed; set PEXELS_API_KEY for the bigger Pexels library'}">🖼 Browse stock photos</button>
         <button class="btn small secondary" id="storefrontBtn" ${opts.providers?.places && lead.source !== 'demo' ? '' : 'disabled title="Set GOOGLE_PLACES_API_KEY (demo leads have no real storefront)"'}>📍 Get storefront from Google</button>
       </div>
       <div id="stockPicker"></div>
@@ -391,7 +391,7 @@ function drawLead(lead, opts = {}) {
     try {
       const { candidates } = await api(`/api/leads/${lead.id}/images/stock`);
       document.getElementById('stockPicker').innerHTML = candidates.length ? `
-        <p class="hint" style="margin:14px 0 8px">Pick the photos that fit (Pexels license, free for commercial use):</p>
+        <p class="hint" style="margin:14px 0 8px">Pick the photos that fit — all licensed for commercial use (${esc(candidates[0].license || 'stock license')}):</p>
         <div class="img-grid">
           ${candidates.map((c) => `
             <div class="img-card img-pick" data-pick="${esc(c.candidateId)}" title="${esc(c.query)}">

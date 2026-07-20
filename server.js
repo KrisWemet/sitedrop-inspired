@@ -409,7 +409,7 @@ async function handleStockCandidates(res, leadId) {
   const enrichment = lead.enrichment || await enrichLead(lead);
   const candidates = await stockCandidates(lead, enrichment.industry);
   candidateCache.set(leadId, candidates);
-  json(res, 200, { candidates: candidates.map(({ candidateId, thumb, photographer, query }) => ({ candidateId, thumb, photographer, query })) });
+  json(res, 200, { candidates: candidates.map(({ candidateId, thumb, photographer, query, provider, license }) => ({ candidateId, thumb, photographer, query, provider, license })) });
 }
 
 async function handleStockSelect(req, res, leadId) {

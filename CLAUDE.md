@@ -78,11 +78,16 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
 - `lib/outreach.js` — pitch email drafts (template or Claude).
 - `lib/zip.js` — minimal store-only ZIP writer for the deploy pack.
 - `lib/images.js` — photo pipeline. Sources: `client` (uploads, live-site
-  source of truth), `pexels` (licensed stock, allowed live), `places`
-  (Google storefront, PREVIEW ONLY — `selectImages(lead, 'live')` strips it
-  and the tests assert this; never weaken that). Preview embeds data URIs;
-  live mode (`generateSite(..., {mode:'live', imageMode:'files'})`) ships
-  files under `images/`. An `<img>` renders only when bytes exist on disk.
+  source of truth), `pexels` (licensed stock, allowed live, needs key),
+  `openverse` (KEYLESS stock restricted to `license=cc0` so it's live-safe;
+  the default when no Pexels key is set and the fallback when Pexels errors),
+  `places` (Google storefront, PREVIEW ONLY — `selectImages(lead, 'live')`
+  strips it and the tests assert this; never weaken that). Unlicensed
+  sources (Pinterest, Google Images, social scrapes) are deliberately
+  refused — never add one. Preview embeds data URIs; live mode
+  (`generateSite(..., {mode:'live', imageMode:'files'})`) ships files under
+  `images/`. An `<img>` renders only when bytes exist on disk, and
+  `attachStockImage` rejects non-photo content types.
 - `lib/publish.js` — Vercel REST deploys; slug = name+city+id-suffix
   (collision-safe).
 - `lib/mailer.js` — Resend via plain fetch. ONLY sends the operator digest;

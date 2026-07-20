@@ -107,14 +107,21 @@ npm start        # → http://localhost:3000
 - **Daily digest email:** set `RESEND_API_KEY`, `OUTREACH_FROM` (verified sender),
   and `DIGEST_TO` (your inbox). Optional `DIGEST_HOUR` (default 8). Without these,
   autopilot still runs — activity just stays in the dashboard.
-- **Photos:** three sources with different rules. `PEXELS_API_KEY` (free at
-  pexels.com/api) unlocks a licensed-stock picker with curated per-industry
-  searches; `GOOGLE_PLACES_API_KEY` pulls the business's real **storefront photo
-  from its Google listing for the preview only** (Google's terms restrict reuse,
-  so it is stripped from every deploy pack and publish automatically); **client
-  uploads** (JPEG/PNG/WebP, per-lead, on the lead page) are the live-site source
-  of truth. Previews embed photos into the single HTML file; live output ships
-  them as real files in an `images/` folder.
+- **Photos:** four sources with different rules. The licensed-stock picker
+  works **with no key at all**: it searches [Openverse](https://openverse.org)
+  for **CC0 (public-domain)** photos with curated per-industry queries, safe
+  for live client sites with no attribution required. `PEXELS_API_KEY` (free
+  at pexels.com/api) switches the picker to the bigger, better-curated Pexels
+  library (Pexels license, also live-safe; falls back to Openverse if Pexels
+  errors); `GOOGLE_PLACES_API_KEY` pulls the business's real **storefront
+  photo from its Google listing for the preview only** (Google's terms
+  restrict reuse, so it is stripped from every deploy pack and publish
+  automatically); **client uploads** (JPEG/PNG/WebP, per-lead, on the lead
+  page) are the live-site source of truth. Previews embed photos into the
+  single HTML file; live output ships them as real files in an `images/`
+  folder. Sources without verifiable reuse rights (Pinterest boards, Google
+  Images) are deliberately not supported — pins are third-party copyrighted
+  photos, and a paid client site is the worst place to ship one.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... npm start

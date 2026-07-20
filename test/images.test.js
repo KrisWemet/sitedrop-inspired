@@ -65,6 +65,98 @@ test('generated preview embeds photos as data URIs; live mode ships files and no
   assert.ok(!live.html.includes('preview only'), 'no preview-only caption in live output');
 });
 
+// ---- keyless stock via Openverse (mocked network) ----
+const { stockCandidates, attachStockImage } = await import('../lib/images.js');
+
+function stubFetch(responder) {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => responder(String(url), opts);
+  return () => { globalThis.fetch = original; };
+}
+
+const jsonResponse = (body) => ({
+  ok: true, status: 200,
+  headers: { get: (h) => (h.toLowerCase() === 'content-type' ? 'application/json' : null) },
+  json: async () => body,
+  arrayBuffer: async () => new ArrayBuffer(0),
+});
+const bytesResponse = (buf, type) => ({
+  ok: true, status: 200,
+  headers: { get: (h) => (h.toLowerCase() === 'content-type' ? type : null) },
+  arrayBuffer: async () => buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength),
+});
+
+test('stockCandidates falls back to Openverse CC0 with no Pexels key', async () => {
+  delete process.env.PEXELS_API_KEY;
+  const calls = [];
+  const restore = stubFetch((url) => {
+    calls.push(url);
+    assert.ok(url.startsWith('https://api.openverse.org/v1/images/'), 'keyless search goes to Openverse');
+    assert.ok(url.includes('license=cc0'), 'restricted to public-domain dedication');
+    return jsonResponse({ results: [
+      { id: 'abc-123', url: 'https://img.example.net/oven.jpg', thumbnail: 'https://img.example.net/oven_t.jpg', creator: 'A. Baker', license: 'cc0' },
+    ] });
+  });
+  try {
+    const candidates = await stockCandidates(lead, 'bakery');
+    assert.ok(calls.length >= 1);
+    assert.equal(candidates[0].provider, 'openverse');
+    assert.equal(candidates[0].candidateId, 'openverse_abc-123');
+    assert.equal(candidates[0].license, 'CC0 (public domain)');
+    assert.equal(candidates[0].full, 'https://img.example.net/oven.jpg');
+  } finally { restore(); }
+});
+
+test('attachStockImage stores an Openverse photo as live-legal with CC0 credit', async () => {
+  const png = Buffer.from(PNG_B64, 'base64');
+  const restore = stubFetch(() => bytesResponse(png, 'image/png'));
+  try {
+    const image = await attachStockImage(lead, {
+      candidateId: 'openverse_x', provider: 'openverse', full: 'https://img.example.net/x.png',
+      photographer: 'A. Baker', query: 'artisan bread sourdough crust',
+    });
+    assert.equal(image.source, 'openverse');
+    assert.equal(image.previewOnly, false, 'CC0 photos are allowed on live sites');
+    assert.ok(image.credit.includes('CC0'));
+    const live = selectImages({ ...lead, images: [image] }, 'live');
+    assert.equal(live.hero.source, 'openverse', 'live mode keeps the CC0 photo');
+  } finally { restore(); }
+});
+
+test('attachStockImage rejects non-photo content types', async () => {
+  const restore = stubFetch(() => bytesResponse(Buffer.from('<html>not a photo</html>'), 'text/html'));
+  try {
+    await assert.rejects(
+      () => attachStockImage(lead, { provider: 'openverse', full: 'https://img.example.net/page', query: 'x' }),
+      /Unsupported image type/);
+  } finally { restore(); }
+});
+
+test('Pexels is preferred when its key is set, and its failure falls back to Openverse', async () => {
+  process.env.PEXELS_API_KEY = 'test-key';
+  try {
+    let restore = stubFetch((url) => {
+      if (url.startsWith('https://api.pexels.com/')) {
+        return jsonResponse({ photos: [{ id: 9, src: { medium: 'https://p.example.net/m.jpg', large: 'https://p.example.net/l.jpg' }, photographer: 'P. Shooter' }] });
+      }
+      throw new Error('unexpected host ' + url);
+    });
+    try {
+      const picks = await stockCandidates(lead, 'bakery');
+      assert.equal(picks[0].provider, 'pexels');
+    } finally { restore(); }
+
+    restore = stubFetch((url) => {
+      if (url.startsWith('https://api.pexels.com/')) return { ok: false, status: 429, headers: { get: () => null } };
+      return jsonResponse({ results: [{ id: 'fb-1', url: 'https://img.example.net/fb.jpg', creator: null, license: 'cc0' }] });
+    });
+    try {
+      const picks = await stockCandidates(lead, 'bakery');
+      assert.equal(picks[0].provider, 'openverse', 'Pexels outage degrades to Openverse, not to no photos');
+    } finally { restore(); }
+  } finally { delete process.env.PEXELS_API_KEY; }
+});
+
 test('sites without images generate exactly as before', async () => {
   const bare = { ...lead, id: 'lead_noimg', images: [] };
   const profile = await enrichLead(bare);
