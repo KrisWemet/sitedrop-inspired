@@ -185,6 +185,45 @@ test('no-JS contact form renders when a form endpoint is configured', async () =
   assert.ok(!/\son\w+=/.test(html), 'no inline event handlers');
 });
 
+// Guards for the /impeccable critique P0-P2 fixes: content-adaptive layout
+// for photo-less leads, hours folded into the contact band, honest CTAs.
+test('no-photo leads get the compact hero: name as mark, tagline as h1, no motif', async () => {
+  const profile = await enrichLead(lead);
+  for (const theme of ['warm', 'elegant', 'bold', 'clean']) {
+    const { html } = generateSite(lead, profile, theme);
+    assert.ok(html.includes('hero-compact'), `${theme}: compact hero for photo-less leads`);
+    assert.ok(html.includes(`<p class="brand-mark">${'Luna Nails &amp; Spa'}</p>`), `${theme}: name renders as the mark`);
+    const h1 = html.match(/<h1>(.*?)<\/h1>/s)[1];
+    assert.equal(h1, profile.tagline.replaceAll('&', '&amp;'), `${theme}: tagline carries the h1`);
+    assert.ok(!/<section class="hero[^"]*"[^>]*>\s*<svg/.test(html), `${theme}: no faint motif in the compact hero`);
+  }
+});
+
+test('hours fold into the contact band as a per-day strip with a Closed row', async () => {
+  const profile = await enrichLead(lead); // Mo-Sa 09:30-19:30
+  const { html } = generateSite(lead, profile, 'elegant');
+  assert.ok(html.includes('class="hours-strip" id="hours"'), 'hours strip carries the #hours anchor');
+  assert.ok(!html.includes('hours-table'), 'the standalone hours section is gone');
+  assert.ok(html.includes('<b>Mon – Sat</b><span>9:30 AM – 7:30 PM</span>'), 'grouped day range renders');
+  assert.ok(html.includes('<b>Sun</b><span>Closed</span>'), 'uncovered days get an explicit Closed row');
+});
+
+const CONTACT_PHONE_ICON = 'M22 16.9v3a2 2 0 0 1-2.2 2';
+
+test('honest CTAs: transactional labels only when a booking or form exists', async () => {
+  const profile = await enrichLead(lead);
+  // No booking, no form: the beauty KB's "Book an Appointment" must not render.
+  const plain = generateSite(lead, profile, 'elegant').html;
+  assert.ok(!plain.includes('Book an Appointment'), 'no booking promise without a booking channel');
+  assert.ok(plain.includes('See Hours &amp; Location'), 'secondary CTA says where it actually goes');
+  // With a booking link the transactional label returns.
+  const booked = generateSite({ ...lead, cta: { bookingUrl: 'https://calendly.com/luna' } }, profile, 'elegant').html;
+  assert.ok(booked.includes('Book an Appointment'));
+  // The contact band's call button doesn't repeat a phone row an inch above it.
+  assert.ok(!plain.includes(CONTACT_PHONE_ICON), 'no phone list row when the button is the call action');
+  assert.ok(booked.includes(CONTACT_PHONE_ICON), 'phone row returns when the button is the booking action');
+});
+
 test('booking link retargets the CTA to a real external booking URL', async () => {
   const withBooking = { ...lead, cta: { bookingUrl: 'https://calendly.com/shear-bliss' } };
   const profile = await enrichLead(withBooking);

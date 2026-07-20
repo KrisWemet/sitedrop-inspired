@@ -110,6 +110,20 @@ Section renderers driven by per-theme recipes: hero composition
 seed-picked from the theme's allowed list via `profile.layoutSeed`), brand
 treatment, typographic tokens, abstract per-industry-group SVG motifs
 (6 groups; keep them abstract — literal clip-art reads worse than nothing).
+
+Content-adaptive layout (from the /impeccable critique; guarded by the
+"no-photo leads get the compact hero" tests): a lead with NO photo gets the
+compact hero on every theme — name as a letterspaced mark, tagline as the
+h1, single bounded column, no motif, no reserved empty half; the theme's
+two-column/motif hero returns only when a real photo exists (split shows the
+photo in the hero and the about aside then skips it). Opening hours render as
+a per-day strip inside the contact band (`.hours-strip`, keeps the `#hours`
+anchor; same `parseOpeningHours` feed as the JSON-LD so page and schema can't
+disagree; uncovered days get an explicit Closed row) — never as a standalone
+one-row section. CTAs are honest: transactional labels (Book/Quote/Schedule)
+render only when a bookingUrl or formEndpoint exists, otherwise the secondary
+CTA says where it actually lands; the contact band's phone row is suppressed
+when the action button already carries the number.
 The SEO head (meta + JSON-LD) is one code path for all themes — there is a
 parity test asserting identical structured data across themes; keep it green.
 Copy comes from the seeded knowledge base in enrich.js (per-service

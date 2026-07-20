@@ -28,10 +28,14 @@ npm start        # → http://localhost:3000
 
 4. **Generate Website** — builds a complete, responsive, professionally designed
    one-page site from the gathered data: sticky nav, hero with call CTA, about +
-   at-a-glance card, services grid, "why choose us", opening hours, FAQ, and a
-   contact band with map link. Four themes (Warm / Elegant / Bold / Clean),
-   auto-matched to the industry and switchable per generation. Live preview in-tab;
-   each site is one self-contained HTML file you can download and host anywhere.
+   at-a-glance card, services grid, "why choose us", FAQ, and a contact band with
+   per-day opening hours and map link. Four themes (Warm / Elegant / Bold / Clean),
+   auto-matched to the industry and switchable per generation. The layout adapts
+   to the content it actually has: photo-less businesses get a deliberately
+   compact hero (no empty half waiting for a missing image), and hours render as
+   a slim strip beside the contact info instead of a near-empty section. Live
+   preview in-tab; each site is one self-contained HTML file you can download and
+   host anywhere.
    **Lead capture without JavaScript:** add a booking link (Calendly/Cal.com/Square)
    and/or a hosted contact-form endpoint (Formspree/Basin/Web3Forms) per lead — the
    site renders a real `<form>` that posts natively (no JS) and retargets the hero CTA
