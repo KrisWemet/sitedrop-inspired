@@ -131,7 +131,17 @@ npm start        # → http://localhost:3000
   supported — pins are third-party copyrighted photos, and a paid client
   site is the worst place to ship one.
 
+Keys can be passed inline or, more conveniently, dropped into a local `.env`
+file — copy `.env.example` to `.env`, fill in what you have, and `npm start`
+loads it automatically (real environment variables always win; `.env` is
+gitignored so keys never get committed):
+
 ```bash
+cp .env.example .env      # then edit: PEXELS_API_KEY=..., ANTHROPIC_API_KEY=..., etc.
+npm start
+
+# …or inline, equivalently:
+PEXELS_API_KEY=... npm start     # licensed Pexels stock instead of keyless CC0
 ANTHROPIC_API_KEY=sk-ant-... npm start
 VERCEL_TOKEN=... npm start       # enables 🚀 Publish live
 RESEND_API_KEY=... OUTREACH_FROM=you@yourdomain.com DIGEST_TO=you@gmail.com npm start

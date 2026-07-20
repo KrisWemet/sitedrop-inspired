@@ -22,6 +22,30 @@ import { renderProposalHtml } from './lib/proposal.js';
 import crypto from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+
+// Zero-dependency .env loader: KEY=value lines from a local .env, so an
+// operator can drop PEXELS_API_KEY / ANTHROPIC_API_KEY / VERCEL_TOKEN in one
+// gitignored file instead of exporting them every run. Existing process.env
+// always wins; the file is optional and never overwrites a real env var.
+function loadDotenv() {
+  try {
+    const text = fs.readFileSync(path.join(ROOT, '.env'), 'utf8');
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq < 1) continue;
+      const key = line.slice(0, eq).trim();
+      let val = line.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      if (!(key in process.env)) process.env[key] = val;
+    }
+  } catch { /* no .env — fine, everything degrades gracefully */ }
+}
+loadDotenv();
+
 const PUBLIC_DIR = path.join(ROOT, 'public');
 const PORT = process.env.PORT || 3000;
 
