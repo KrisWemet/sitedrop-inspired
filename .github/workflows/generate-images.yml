@@ -14,6 +14,14 @@ on:
         description: Path to the prompts JSON (array of {key, prompt, seed, alt})
         required: false
         default: assets/ai-photo-prompts.json
+  # Editing the prompts file (or this workflow) also triggers a run, so
+  # environments whose tokens lack actions:write can start one with a push.
+  # The run's own image commit touches only assets/demo-photos/, which is
+  # not in this path filter — no trigger loop.
+  push:
+    paths:
+      - assets/ai-photo-prompts.json
+      - .github/workflows/generate-images.yml
 
 permissions:
   contents: write
