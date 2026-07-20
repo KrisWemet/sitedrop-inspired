@@ -1,5 +1,41 @@
 [
   {
+    "key": "restaurant_hero",
+    "seed": 47,
+    "alt": "Candlelit restaurant interior",
+    "prompt": "intimate neighborhood restaurant interior at dusk, candlelit tables, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "restaurant_detail",
+    "seed": 48,
+    "alt": "Plated pasta dish on a wooden table",
+    "prompt": "rustic plated pasta dish on a wooden table beside a glass of red wine, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "cafe_hero",
+    "seed": 49,
+    "alt": "Sunlit coffee shop counter",
+    "prompt": "sunlit independent coffee shop counter with espresso machine and pastry case, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "cafe_detail",
+    "seed": 50,
+    "alt": "Latte on a marble table by a window",
+    "prompt": "latte with leaf art on a small marble table by a window, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "bakery_hero",
+    "seed": 44,
+    "alt": "Bakery shelves with fresh sourdough loaves",
+    "prompt": "artisan bakery interior with wooden shelves of fresh sourdough loaves, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "bakery_detail",
+    "seed": 51,
+    "alt": "Scored sourdough loaf on a cooling rack",
+    "prompt": "close-up of a scored sourdough boule with flour dusting on a cooling rack, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
     "key": "salon_hero",
     "seed": 41,
     "alt": "Boutique salon styling chair and mirror",
@@ -12,27 +48,99 @@
     "prompt": "close-up of professional salon shears and combs arranged on a linen cloth, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
   },
   {
-    "key": "plumber_hero",
+    "key": "trades_hero",
     "seed": 43,
     "alt": "Organized workshop wall of tools and fittings",
     "prompt": "neatly organized tradesman workshop wall of hand tools and copper pipe fittings, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
   },
   {
-    "key": "bakery_hero",
-    "seed": 44,
-    "alt": "Bakery shelves with fresh sourdough loaves",
-    "prompt": "artisan bakery interior with wooden shelves of fresh sourdough loaves, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+    "key": "trades_detail",
+    "seed": 52,
+    "alt": "Copper pipework and brass valves on a workbench",
+    "prompt": "close-up of polished copper pipework and brass valves on a workbench, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
   },
   {
-    "key": "dental_hero",
+    "key": "auto_hero",
+    "seed": 53,
+    "alt": "Auto repair garage with a car on a lift",
+    "prompt": "clean independent auto repair garage interior with a car on a lift, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "auto_detail",
+    "seed": 54,
+    "alt": "Socket wrench set in a tool chest",
+    "prompt": "close-up of chrome socket wrench set arranged in a rolling tool chest drawer, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "health_hero",
     "seed": 45,
     "alt": "Calm clinic reception with soft seating",
     "prompt": "calm modern clinic reception with soft seating and plants, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "health_detail",
+    "seed": 55,
+    "alt": "Bright, tidy treatment room",
+    "prompt": "minimal treatment room with neatly made exam chair and natural light, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "fitness_hero",
+    "seed": 56,
+    "alt": "Gym interior with kettlebells and rings",
+    "prompt": "independent gym interior with kettlebell rack and rings in morning light, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "fitness_detail",
+    "seed": 57,
+    "alt": "Chalked barbell on a lifting platform",
+    "prompt": "close-up of chalked barbell knurling on a lifting platform, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "professional_hero",
+    "seed": 58,
+    "alt": "Small office meeting room",
+    "prompt": "calm small office meeting room, wooden table, notebooks and glass water carafe, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "professional_detail",
+    "seed": 59,
+    "alt": "Fountain pen on printed documents",
+    "prompt": "close-up of a fountain pen resting on printed documents, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "retail_hero",
+    "seed": 60,
+    "alt": "Boutique interior with curated shelves",
+    "prompt": "charming small boutique interior with wooden shelves of curated goods, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "retail_detail",
+    "seed": 61,
+    "alt": "Wrapped parcels on a shop counter",
+    "prompt": "close-up of kraft-paper wrapped parcels tied with twine on a shop counter, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "hospitality_hero",
+    "seed": 62,
+    "alt": "Cozy guesthouse bedroom in morning light",
+    "prompt": "cozy guesthouse bedroom with crisp white linen and morning light through curtains, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "hospitality_detail",
+    "seed": 63,
+    "alt": "Breakfast tray on a windowsill",
+    "prompt": "breakfast tray with croissants and coffee on a windowsill, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
   },
   {
     "key": "generic_hero",
     "seed": 46,
     "alt": "Small-town storefront at golden hour",
     "prompt": "charming small-town storefront with awning and flower boxes at golden hour, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "generic_detail",
+    "seed": 64,
+    "alt": "Open sign in a shop door window",
+    "prompt": "close-up of an open sign hanging in a shop door window, glass reflections, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
   }
 ]

@@ -194,6 +194,24 @@ test('attachAiBytes validates content type and ai ranks above openverse, below c
   assert.equal(picked.gallery[0].source, 'ai', 'bespoke AI outranks generic CC0 stock');
 });
 
+// The committed prompt library drives the GitHub Actions generation workflow;
+// the in-app generator uses AI_PROMPTS directly. They must never drift.
+test('assets/ai-photo-prompts.json stays in sync with AI_PROMPTS', async () => {
+  const { AI_PROMPTS } = await import('../lib/images.js');
+  const url = new URL('../assets/ai-photo-prompts.json', import.meta.url);
+  const library = JSON.parse(fs.readFileSync(url, 'utf8'));
+  const byKey = Object.fromEntries(library.map((e) => [e.key, e]));
+  const expected = Object.entries(AI_PROMPTS).flatMap(([industry, prompts]) =>
+    prompts.map((p, i) => [`${industry}_${i === 0 ? 'hero' : 'detail'}`, p]));
+  assert.equal(library.length, expected.length, 'one library entry per AI prompt');
+  for (const [key, p] of expected) {
+    assert.ok(byKey[key], `library missing ${key}`);
+    assert.equal(byKey[key].prompt, p.prompt, `${key}: prompt drifted from AI_PROMPTS`);
+    assert.equal(byKey[key].alt, p.alt, `${key}: alt drifted from AI_PROMPTS`);
+    assert.ok(Number.isInteger(byKey[key].seed), `${key}: seed must be a stable integer`);
+  }
+});
+
 test('sites without images generate exactly as before', async () => {
   const bare = { ...lead, id: 'lead_noimg', images: [] };
   const profile = await enrichLead(bare);
