@@ -1,0 +1,38 @@
+[
+  {
+    "key": "salon_hero",
+    "seed": 41,
+    "alt": "Boutique salon styling chair and mirror",
+    "prompt": "calm boutique hair salon interior, styling chair before a large round mirror, plants and warm wood, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "salon_detail",
+    "seed": 42,
+    "alt": "Salon shears and combs on a linen cloth",
+    "prompt": "close-up of professional salon shears and combs arranged on a linen cloth, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "plumber_hero",
+    "seed": 43,
+    "alt": "Organized workshop wall of tools and fittings",
+    "prompt": "neatly organized tradesman workshop wall of hand tools and copper pipe fittings, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "bakery_hero",
+    "seed": 44,
+    "alt": "Bakery shelves with fresh sourdough loaves",
+    "prompt": "artisan bakery interior with wooden shelves of fresh sourdough loaves, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "dental_hero",
+    "seed": 45,
+    "alt": "Calm clinic reception with soft seating",
+    "prompt": "calm modern clinic reception with soft seating and plants, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  },
+  {
+    "key": "generic_hero",
+    "seed": 46,
+    "alt": "Small-town storefront at golden hour",
+    "prompt": "charming small-town storefront with awning and flower boxes at golden hour, editorial photography, warm natural light, shallow depth of field, no people, no faces, no text, no watermark"
+  }
+]

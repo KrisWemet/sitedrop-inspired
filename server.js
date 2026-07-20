@@ -15,7 +15,7 @@ import { buildOutreach } from './lib/outreach.js';
 import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
 import { buildZip } from './lib/zip.js';
 import { publishSite, isPublishConfigured } from './lib/publish.js';
-import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, deleteImage, readImageBytes } from './lib/images.js';
+import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, generateAiImages, deleteImage, readImageBytes } from './lib/images.js';
 import { pricingConfig, buildClient, buildInvoiceRecord, advanceRetainer } from './lib/billing.js';
 import { renderInvoiceHtml } from './lib/invoice.js';
 import { renderProposalHtml } from './lib/proposal.js';
@@ -431,6 +431,15 @@ async function handleStorefront(res, leadId) {
   json(res, 200, { lead: updated });
 }
 
+async function handleAiGenerate(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const enrichment = lead.enrichment || await enrichLead(lead);
+  const images = await generateAiImages(lead, enrichment.industry);
+  const updated = db.updateLead(leadId, { images: [...(lead.images || []), ...images] });
+  json(res, 200, { lead: updated });
+}
+
 async function handleImageUpload(req, res, leadId) {
   const lead = db.getLead(leadId);
   if (!lead) return json(res, 404, { error: 'Lead not found' });
@@ -540,6 +549,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'GET') return await handleStockCandidates(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/stock$/)) && req.method === 'POST') return await handleStockSelect(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/storefront$/)) && req.method === 'POST') return await handleStorefront(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/ai$/)) && req.method === 'POST') return await handleAiGenerate(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images$/)) && req.method === 'POST') return await handleImageUpload(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/([\w-]+)$/)) && req.method === 'DELETE') return handleImageDelete(res, m[1], m[2]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/images\/([\w-]+)\/raw$/)) && req.method === 'GET') {

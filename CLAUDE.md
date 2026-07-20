@@ -81,13 +81,18 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   source of truth), `pexels` (licensed stock, allowed live, needs key),
   `openverse` (KEYLESS stock restricted to `license=cc0` so it's live-safe;
   the default when no Pexels key is set and the fallback when Pexels errors),
-  `places` (Google storefront, PREVIEW ONLY — `selectImages(lead, 'live')`
-  strips it and the tests assert this; never weaken that). Unlicensed
-  sources (Pinterest, Google Images, social scrapes) are deliberately
-  refused — never add one. Preview embeds data URIs; live mode
-  (`generateSite(..., {mode:'live', imageMode:'files'})`) ships files under
-  `images/`. An `<img>` renders only when bytes exist on disk, and
-  `attachStockImage` rejects non-photo content types.
+  `ai` (KEYLESS bespoke photography via Pollinations Flux — per-industry
+  interior/detail prompts, NEVER people or text, honest "AI-generated
+  photograph" credit, allowed live; `.github/workflows/generate-images.yml`
+  + `assets/ai-photo-prompts.json` generate the same set on GitHub runners
+  for environments whose network blocks the API), `places` (Google
+  storefront, PREVIEW ONLY — `selectImages(lead, 'live')` strips it and the
+  tests assert this; never weaken that). Live selection order: client >
+  pexels > ai > openverse. Unlicensed sources (Pinterest, Google Images,
+  social scrapes) are deliberately refused — never add one. Preview embeds
+  data URIs; live mode (`generateSite(..., {mode:'live', imageMode:'files'})`)
+  ships files under `images/`. An `<img>` renders only when bytes exist on
+  disk, and stock/AI attach rejects non-photo content types.
 - `lib/publish.js` — Vercel REST deploys; slug = name+city+id-suffix
   (collision-safe).
 - `lib/mailer.js` — Resend via plain fetch. ONLY sends the operator digest;

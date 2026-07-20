@@ -281,6 +281,7 @@ function drawLead(lead, opts = {}) {
           <input type="file" id="imgUpload" accept="image/jpeg,image/png,image/webp" multiple style="display:none">
         </label>
         <button class="btn small secondary" id="stockBtn" title="${opts.providers?.pexels ? 'Pexels library (API key set)' : 'CC0 public-domain photos via Openverse — no key needed; set PEXELS_API_KEY for the bigger Pexels library'}">🖼 Browse stock photos</button>
+        <button class="btn small secondary" id="aiBtn" title="Bespoke photography generated with the free Pollinations Flux API — interiors and detail shots matched to the industry, no key needed">✨ Generate AI photos</button>
         <button class="btn small secondary" id="storefrontBtn" ${opts.providers?.places && lead.source !== 'demo' ? '' : 'disabled title="Set GOOGLE_PLACES_API_KEY (demo leads have no real storefront)"'}>📍 Get storefront from Google</button>
       </div>
       <div id="stockPicker"></div>
@@ -409,6 +410,20 @@ function drawLead(lead, opts = {}) {
     } catch (err) { alert('Stock search failed: ' + err.message); }
     btn.disabled = false;
     btn.textContent = '🖼 Browse stock photos';
+  });
+
+  document.getElementById('aiBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Generating (can take a minute)…';
+    try {
+      await post(`/api/leads/${lead.id}/images/ai`, {});
+      renderLead(lead.id);
+    } catch (err) {
+      alert('AI photo generation failed: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = '✨ Generate AI photos';
+    }
   });
 
   document.getElementById('storefrontBtn')?.addEventListener('click', async (ev) => {

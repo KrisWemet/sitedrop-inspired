@@ -157,6 +157,43 @@ test('Pexels is preferred when its key is set, and its failure falls back to Ope
   } finally { delete process.env.PEXELS_API_KEY; }
 });
 
+// ---- AI-generated photography (mocked network) ----
+const { generateAiImages, attachAiBytes, imageProviders } = await import('../lib/images.js');
+
+test('generateAiImages produces live-legal ai-source photos with an honest credit', async () => {
+  const png = Buffer.from(PNG_B64, 'base64');
+  const urls = [];
+  const restore = stubFetch((url) => {
+    urls.push(url);
+    assert.ok(url.startsWith('https://image.pollinations.ai/prompt/'), 'generation goes to Pollinations');
+    assert.ok(url.includes('model=flux') && url.includes('nologo=true'));
+    return bytesResponse(png, 'image/png');
+  });
+  try {
+    const aiLead = { ...lead, id: 'lead_aitest', images: [] };
+    const images = await generateAiImages(aiLead, 'salon');
+    assert.equal(images.length, 2, 'hero + detail shot');
+    assert.ok(images.every((i) => i.source === 'ai' && i.previewOnly === false));
+    assert.ok(images[0].credit.includes('AI-generated'), 'credit says plainly the photo is generated');
+    assert.ok(decodeURIComponent(urls[0]).includes('no people'), 'prompts exclude people');
+    const live = selectImages({ ...aiLead, images }, 'live');
+    assert.equal(live.hero.source, 'ai', 'AI photos are allowed on live sites');
+  } finally { restore(); }
+});
+
+test('attachAiBytes validates content type and ai ranks above openverse, below client', () => {
+  assert.throws(() => attachAiBytes(lead, Buffer.from('nope'), 'text/html', { alt: 'x' }), /Unsupported image type/);
+  assert.equal(imageProviders().ai, true, 'AI generation is keyless');
+  const png = Buffer.from(PNG_B64, 'base64');
+  const mixLead = { ...lead, id: 'lead_aimix', images: [] };
+  const ai = attachAiBytes(mixLead, png, 'image/png', { alt: 'AI shot' });
+  const cc0 = { ...ai, id: 'img_cc0', source: 'openverse' };
+  const client = { ...ai, id: 'img_cli', source: 'client' };
+  const picked = selectImages({ ...mixLead, images: [cc0, ai, client] }, 'live');
+  assert.equal(picked.hero.source, 'client', 'real client photos always lead');
+  assert.equal(picked.gallery[0].source, 'ai', 'bespoke AI outranks generic CC0 stock');
+});
+
 test('sites without images generate exactly as before', async () => {
   const bare = { ...lead, id: 'lead_noimg', images: [] };
   const profile = await enrichLead(bare);

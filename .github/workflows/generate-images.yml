@@ -1,0 +1,73 @@
+# Generates the demo AI photo set on a GitHub runner and commits it to the
+# branch that dispatched the run. Exists because some development sandboxes
+# (including Claude's remote containers) sit behind a network policy that
+# blocks image.pollinations.ai — GitHub's runners are not blocked, so the
+# images are generated here and pulled back down. The app itself calls the
+# same API directly at runtime (lib/images.js generateAiImages) when its
+# network allows.
+name: Generate AI demo photos
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompts_file:
+        description: Path to the prompts JSON (array of {key, prompt, seed, alt})
+        required: false
+        default: assets/ai-photo-prompts.json
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate images from prompts
+        env:
+          PROMPTS_FILE: ${{ inputs.prompts_file || 'assets/ai-photo-prompts.json' }}
+        run: |
+          set -u
+          mkdir -p assets/demo-photos
+          failures=0
+          while read -r item; do
+            key=$(jq -r .key <<<"$item")
+            prompt=$(jq -r .prompt <<<"$item")
+            seed=$(jq -r '.seed // 7' <<<"$item")
+            out="assets/demo-photos/${key}.jpg"
+            enc=$(jq -rn --arg p "$prompt" '$p|@uri')
+            url="https://image.pollinations.ai/prompt/${enc}?width=1216&height=832&model=flux&nologo=true&seed=${seed}"
+            ok=""
+            for attempt in 1 2 3; do
+              code=$(curl -sS -m 300 -o "$out" -w '%{http_code}' "$url" || echo 000)
+              type=$(file -b --mime-type "$out" 2>/dev/null || echo unknown)
+              if [ "$code" = "200" ] && [ "$type" = "image/jpeg" -o "$type" = "image/png" -o "$type" = "image/webp" ]; then
+                echo "OK $key ($type, $(stat -c%s "$out") bytes)"
+                ok=1
+                break
+              fi
+              echo "attempt $attempt for $key failed (HTTP $code, type $type); retrying in 15s"
+              sleep 15
+            done
+            if [ -z "$ok" ]; then
+              rm -f "$out"
+              failures=$((failures+1))
+              echo "::warning::giving up on $key"
+            fi
+          done < <(jq -c '.[]' "$PROMPTS_FILE")
+          echo "failures=$failures"
+          # Succeed if at least one image was produced; a fully-failed run fails.
+          ls assets/demo-photos/*.jpg >/dev/null
+
+      - name: Commit generated photos
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/demo-photos
+          if git diff --cached --quiet; then
+            echo "No new or changed images to commit."
+          else
+            git commit -m "Generate AI demo photos (Pollinations Flux)"
+            git push
+          fi

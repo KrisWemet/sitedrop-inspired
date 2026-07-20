@@ -117,11 +117,19 @@ npm start        # → http://localhost:3000
   photo from its Google listing for the preview only** (Google's terms
   restrict reuse, so it is stripped from every deploy pack and publish
   automatically); **client uploads** (JPEG/PNG/WebP, per-lead, on the lead
-  page) are the live-site source of truth. Previews embed photos into the
-  single HTML file; live output ships them as real files in an `images/`
-  folder. Sources without verifiable reuse rights (Pinterest boards, Google
-  Images) are deliberately not supported — pins are third-party copyrighted
-  photos, and a paid client site is the worst place to ship one.
+  page) are the live-site source of truth. **✨ Generate AI photos** creates
+  bespoke photography with the free [Pollinations](https://pollinations.ai)
+  Flux API (no key): per-industry interior and detail shots — never people,
+  never text — stored with an explicit "AI-generated photograph" credit and
+  allowed live (no third-party rights attach). If your environment blocks
+  that API, the `Generate AI demo photos` GitHub Actions workflow
+  (`.github/workflows/generate-images.yml`) generates the same set from
+  `assets/ai-photo-prompts.json` on GitHub's runners and commits it to the
+  branch. Previews embed photos into the single HTML file; live output ships
+  them as real files in an `images/` folder. Sources without verifiable
+  reuse rights (Pinterest boards, Google Images) are deliberately not
+  supported — pins are third-party copyrighted photos, and a paid client
+  site is the worst place to ship one.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-... npm start
