@@ -84,6 +84,14 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   self-contained `<svg>`; `starRow(rating)` builds review stars;
   `industryIcon(industry)` maps to an accent glyph. Zero runtime dep — paths
   are baked in. Use sparingly (never the banned icon-tile-above-heading).
+- `lib/review-funnel.js` — the review-request page served at
+  `/sites/:id/review.html` and shipped in the deploy pack. COMPLIANCE: no
+  review gating — it offers the public Google-review link AND a private-
+  feedback channel openly to EVERY visitor, never conditioning the public
+  path on a star selection (FTC review-suppression rule + Google policy).
+  No JS, so the paths can't be gated. Public link = operator-entered
+  `lead.cta.googleReviewUrl`, else a Google Maps search fallback. Print CSS
+  turns it into a counter card.
 - `lib/voice.js` — voice-agent upsell (AI phone receptionist). KEYLESS core:
   `buildAssistantConfig`/`buildSystemPrompt` turn the lead into a full spec
   (system prompt with hard no-fabrication + no-price-guessing + always-take-a-

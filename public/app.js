@@ -300,6 +300,7 @@ function drawLead(lead, opts = {}) {
         <p class="hint" style="margin:8px 0">Turn the "${esc(e?.heroCta || 'Get in touch')}" button into a real booking link, and add a working contact form. Both stay JavaScript-free. Regenerate after saving.</p>
         <div class="field"><label>Booking link (Calendly, Cal.com, Square…)</label><input id="bookingUrl" placeholder="https://calendly.com/your-business" value="${esc(lead.cta?.bookingUrl || '')}"></div>
         <div class="field" style="margin-top:10px"><label>Contact-form endpoint (Formspree, Basin, Web3Forms…)</label><input id="formEndpoint" placeholder="https://formspree.io/f/xxxxxxx" value="${esc(lead.cta?.formEndpoint || '')}"></div>
+        <div class="field" style="margin-top:10px"><label>Google review link (for the review funnel — from the business's Google profile "Ask for reviews")</label><input id="googleReviewUrl" placeholder="https://g.page/r/xxxx/review" value="${esc(lead.cta?.googleReviewUrl || '')}"></div>
         <button class="btn small ghost" id="ctaSaveBtn" style="margin-top:10px">Save lead-capture settings</button>
       </details>
       <details class="conv-box" ${(lead.reviews?.length) ? 'open' : ''}>
@@ -460,6 +461,7 @@ function drawLead(lead, opts = {}) {
         cta: {
           bookingUrl: document.getElementById('bookingUrl').value.trim(),
           formEndpoint: document.getElementById('formEndpoint').value.trim(),
+          googleReviewUrl: document.getElementById('googleReviewUrl').value.trim(),
         },
       });
       btn.textContent = '✓ Saved — regenerate to apply';

@@ -9,7 +9,8 @@ import { searchBusinesses, scoreLead, geocode } from './lib/osm.js';
 import { createCampaign, runCampaign, startScheduler, autopilotStatus, sendDigest, buildDigest } from './lib/autopilot.js';
 import { demoLeads } from './lib/demo-data.js';
 import { enrichLead } from './lib/enrich.js';
-import { generateSite, newSiteId, THEME_KEYS } from './lib/generator.js';
+import { generateSite, newSiteId, THEME_KEYS, themeColors } from './lib/generator.js';
+import { renderReviewFunnel } from './lib/review-funnel.js';
 import { verifyLead } from './lib/verify.js';
 import { buildOutreach } from './lib/outreach.js';
 import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
@@ -592,13 +593,16 @@ async function handlePackZip(res, siteId) {
   const live = await buildLiveSite(site);
   if (!live) return json(res, 404, { error: 'Lead for this site no longer exists' });
   const slug = (site.businessName || siteId).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  const packLead = db.getLead(site.leadId);
+  const reviewFunnel = renderReviewFunnel(packLead, { agency: pricingConfig().agency, theme: themeColors(site.theme) });
   const zip = buildZip([
     { name: 'index.html', data: live.html },
+    { name: 'review.html', data: reviewFunnel },
     ...live.imageFiles.map((f) => ({ name: f.name, data: f.data })),
     { name: 'robots.txt', data: robotsTxt() },
     { name: 'sitemap.xml', data: sitemapXml() },
     { name: 'llms.txt', data: site.llms || '' },
-    { name: 'DEPLOY.md', data: `# Deploying ${site.businessName}\n\nUpload everything (keeping the images/ folder) to the root of any static host (Netlify, Vercel, Cloudflare Pages, GitHub Pages, shared hosting).\n\n- index.html — the website\n- images/ — the site's photos (client and licensed stock only; Google preview photos never ship)\n- robots.txt — welcomes search engines AND AI crawlers\n- sitemap.xml — search engine sitemap\n- llms.txt — plain-language business brief for AI assistants\n\nAfter deploying, update sitemap.xml's <loc> and robots.txt's Sitemap line with the real domain.\n` },
+    { name: 'DEPLOY.md', data: `# Deploying ${site.businessName}\n\nUpload everything (keeping the images/ folder) to the root of any static host (Netlify, Vercel, Cloudflare Pages, GitHub Pages, shared hosting).\n\n- index.html — the website\n- review.html — the review-request page (share the link /review.html to collect reviews; print it for the counter)\n- images/ — the site's photos (client and licensed stock only; Google preview photos never ship)\n- robots.txt — welcomes search engines AND AI crawlers\n- sitemap.xml — search engine sitemap\n- llms.txt — plain-language business brief for AI assistants\n\nAfter deploying, update sitemap.xml's <loc> and robots.txt's Sitemap line with the real domain.\n` },
   ]);
   res.writeHead(200, {
     'Content-Type': 'application/zip',
@@ -606,6 +610,16 @@ async function handlePackZip(res, siteId) {
     'Content-Length': zip.length,
   });
   res.end(zip);
+}
+
+function serveReviewFunnel(res, siteId) {
+  const site = db.getSite(siteId);
+  if (!site) return json(res, 404, { error: 'Site not found' });
+  const lead = db.getLead(site.leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const html = renderReviewFunnel(lead, { agency: pricingConfig().agency, theme: themeColors(site.theme) });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
 }
 
 function handleSiteHtml(res, siteId, download) {
@@ -690,6 +704,7 @@ const server = http.createServer(async (req, res) => {
         : json(res, 404, { error: 'Site not found' });
     }
     if ((m = p.match(/^\/sites\/([\w-]+)\.html$/))) return handleSiteHtml(res, m[1], url.searchParams.has('download'));
+    if ((m = p.match(/^\/sites\/([\w-]+)\/review\.html$/))) return serveReviewFunnel(res, m[1]);
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
     if ((m = p.match(/^\/proposals\/([\w-]+)\.html$/))) return serveProposal(res, m[1]);
     if ((m = p.match(/^\/reports\/([\w-]+)\.html$/))) return serveSeoReport(res, m[1]);
