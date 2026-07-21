@@ -79,14 +79,32 @@ npm start        # → http://localhost:3000
    acceptable-use policies, and several countries' laws, prohibit automated cold email
    to scraped addresses). Every generated site awaits your one-click review.
 
-8. **Close the deal** — a **proposal** page (a private, `noindex` sales document from
-   your studio to the business, with the live preview link and clear pricing), and,
-   once a lead is marked **won**, a **care plan** (the $2,000-upfront + $250/month
-   model) with **invoices**. Invoices are frozen snapshots in an append-only ledger —
-   sequential numbers that never reuse, rendered only from the frozen record so they
-   can't drift — issued only for a won client, never auto-sent. The digest rolls up
-   MRR and flags retainers due. Configure via `AGENCY_NAME`/`AGENCY_EMAIL`/…,
-   `PRICE_SETUP` (2000), `PRICE_MONTHLY` (250), `AGENCY_TAX_RATE` (0).
+8. **Premium upsells, one click each** — turn a $2k site into a $5k package. All
+   are built from the business's own data, with honest guardrails:
+   - **Customer reviews** — enter *real* reviews (from their Google/Facebook
+     listing) and the site grows a testimonials section with a star rating plus
+     `Review`/`AggregateRating` schema. Never fabricated; no reviews, no section.
+   - **AI phone receptionist** — one click generates a complete voice-agent
+     configuration (system prompt with hard "never invent, always take a message"
+     rules, greeting, services/hours knowledge) as a paste-ready **config pack**;
+     set `VAPI_API_KEY` and the same click provisions a **live** Vapi assistant.
+   - **Review funnel** — a shareable/printable `review.html` that invites public
+     Google reviews *and* offers private feedback openly to everyone (no review
+     gating — FTC- and Google-policy-safe), shipped in the deploy pack.
+   - **Search & AI visibility report** — a white-label monthly deliverable at an
+     unguessable link: real checklist/keyword/AEO/GBP status and a content plan,
+     with **no invented traffic or ranking numbers**.
+
+9. **Close the deal** — a **proposal** page (private, `noindex`, from your studio to
+   the business) that now presents **Launch ($2,000) vs Premium ($5,000)** side by
+   side with an à-la-carte add-on menu, and, once a lead is marked **won**, a
+   **care plan** with **invoices**. Invoices are frozen snapshots in an append-only
+   ledger — sequential numbers that never reuse, rendered only from the frozen
+   record so they can't drift — issued only for a won client, never auto-sent. The
+   digest rolls up MRR and flags retainers due. Configure via `AGENCY_NAME`/…,
+   `PRICE_SETUP` (2000) / `PRICE_MONTHLY` (250) / `PRICE_PREMIUM` (5000) /
+   `PRICE_PREMIUM_MONTHLY` (500) + per-add-on `PRICE_VOICE_*`/`PRICE_REVIEWS_*`/
+   `PRICE_SEO_*`, `AGENCY_TAX_RATE` (0).
 
 ## Usage
 
