@@ -33,9 +33,12 @@ npm start        # → http://localhost:3000
    auto-matched to the industry and switchable per generation. The layout adapts
    to the content it actually has: photo-less businesses get a deliberately
    compact hero (no empty half waiting for a missing image), and hours render as
-   a slim strip beside the contact info instead of a near-empty section. Live
-   preview in-tab; each site is one self-contained HTML file you can download and
-   host anywhere.
+   a slim strip beside the contact info instead of a near-empty section. **Every
+   generated site ships with photos by default** — a built-in per-industry photo
+   set (interior + detail, AI-generated, committed to the repo) is attached
+   automatically so a site is never empty, and you can swap in the client's own
+   photos, fresh AI shots, or licensed stock at any time. Live preview in-tab;
+   each site is one self-contained HTML file you can download and host anywhere.
    **Lead capture without JavaScript:** add a booking link (Calendly/Cal.com/Square)
    and/or a hosted contact-form endpoint (Formspree/Basin/Web3Forms) per lead — the
    site renders a real `<form>` that posts natively (no JS) and retargets the hero CTA

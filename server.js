@@ -15,7 +15,7 @@ import { buildOutreach } from './lib/outreach.js';
 import { llmsTxt, robotsTxt, sitemapXml } from './lib/seo.js';
 import { buildZip } from './lib/zip.js';
 import { publishSite, isPublishConfigured } from './lib/publish.js';
-import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, generateAiImages, deleteImage, readImageBytes } from './lib/images.js';
+import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, attachClientImage, generateAiImages, attachBundledImages, deleteImage, readImageBytes } from './lib/images.js';
 import { pricingConfig, buildClient, buildInvoiceRecord, advanceRetainer } from './lib/billing.js';
 import { renderInvoiceHtml } from './lib/invoice.js';
 import { renderProposalHtml } from './lib/proposal.js';
@@ -154,7 +154,16 @@ async function handleGenerate(req, res, leadId) {
   const enrichment = lead.enrichment || await enrichLead(lead);
   const themeKey = THEME_KEYS.includes(theme) ? theme : enrichment.theme;
 
-  const { html, faqs, keywords, checklist, title, description } = generateSite(lead, enrichment, themeKey);
+  // Never ship an empty-looking site: if no photos are attached yet, drop in
+  // the built-in industry set (instant, offline). The operator can replace
+  // them with client uploads or fresh AI/stock photos afterward.
+  let workingLead = lead;
+  if (!(lead.images || []).length) {
+    const bundled = attachBundledImages(lead, enrichment.industry);
+    if (bundled.length) workingLead = db.updateLead(lead.id, { images: bundled }) || { ...lead, images: bundled };
+  }
+
+  const { html, faqs, keywords, checklist, title, description } = generateSite(workingLead, enrichment, themeKey);
   const siteId = lead.siteId || newSiteId();
   db.saveSiteHtml(siteId, html);
 

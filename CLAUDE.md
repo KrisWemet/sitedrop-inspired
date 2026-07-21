@@ -85,9 +85,14 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   interior/detail prompts, NEVER people or text, honest "AI-generated
   photograph" credit, allowed live; `.github/workflows/generate-images.yml`
   + `assets/ai-photo-prompts.json` generate the same set on GitHub runners
-  for environments whose network blocks the API), `places` (Google
-  storefront, PREVIEW ONLY — `selectImages(lead, 'live')` strips it and the
-  tests assert this; never weaken that). Live selection order: client >
+  for environments whose network blocks the API). The generated set is
+  committed to `assets/demo-photos/<industry>_{hero,detail}.jpg` and used by
+  `attachBundledImages` as an INSTANT, OFFLINE, keyless default: the
+  `/generate` handler and autopilot auto-attach the matching industry pair
+  when a lead has no photos, so a generated site is never empty (the operator
+  can then replace them with client uploads or fresh AI/stock). `places`
+  (Google storefront, PREVIEW ONLY — `selectImages(lead, 'live')` strips it
+  and the tests assert this; never weaken that). Live selection order: client >
   pexels > ai > openverse. Unlicensed sources (Pinterest, Google Images,
   social scrapes) are deliberately refused — never add one. Preview embeds
   data URIs; live mode (`generateSite(..., {mode:'live', imageMode:'files'})`)

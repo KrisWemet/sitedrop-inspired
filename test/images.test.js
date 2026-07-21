@@ -212,11 +212,32 @@ test('assets/ai-photo-prompts.json stays in sync with AI_PROMPTS', async () => {
   }
 });
 
-test('sites without images generate exactly as before', async () => {
+test('generateSite renders no img without attached bytes (broken-image rule)', async () => {
   const bare = { ...lead, id: 'lead_noimg', images: [] };
   const profile = await enrichLead(bare);
   const { html, imageFiles, hasImages } = generateSite(bare, profile, 'clean');
   assert.equal(hasImages, false);
   assert.equal(imageFiles.length, 0);
   assert.ok(!html.includes('<img'), 'no img tags without real bytes (broken-image rule)');
+});
+
+test('attachBundledImages fills a photo-less lead from the committed library so the site is never empty', async () => {
+  const { attachBundledImages, bundledImagesAvailable } = await import('../lib/images.js');
+  assert.equal(bundledImagesAvailable(), true, 'the demo-photo library ships with the repo');
+  const salon = { ...lead, id: 'lead_bundle_salon', images: [] };
+  const imgs = attachBundledImages(salon, 'salon');
+  assert.equal(imgs.length, 2, 'a hero + a detail shot');
+  assert.ok(imgs.every((i) => i.source === 'ai' && i.previewOnly === false), 'live-legal AI source');
+  assert.ok(imgs[0].credit.includes('AI-generated'), 'honest credit');
+
+  // The generated site now actually renders those photos.
+  const profile = await enrichLead(salon);
+  const { html, hasImages } = generateSite({ ...salon, images: imgs }, profile, 'elegant');
+  assert.equal(hasImages, true);
+  assert.ok(html.includes('<img'), 'the site is no longer photo-less');
+  assert.ok((html.match(/<img/g) || []).length >= 1);
+
+  // An unknown industry still gets photos (falls back to the generic set).
+  const odd = { ...lead, id: 'lead_bundle_odd', images: [] };
+  assert.equal(attachBundledImages(odd, 'nonexistent-industry').length, 2, 'generic fallback');
 });
