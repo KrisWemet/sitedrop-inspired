@@ -20,6 +20,7 @@ import { pricingConfig, buildClient, buildInvoiceRecord, advanceRetainer } from 
 import { renderInvoiceHtml } from './lib/invoice.js';
 import { renderProposalHtml } from './lib/proposal.js';
 import { renderSeoReportHtml } from './lib/seo-report.js';
+import { voiceConfigured, provisionVapi, renderVoiceConfigPack } from './lib/voice.js';
 import crypto from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -343,6 +344,36 @@ function serveSeoReport(res, token) {
   res.end(html);
 }
 
+// Voice agent: mint a token for the (keyless) config pack, and — when
+// VAPI_API_KEY is set — provision a live assistant in one call.
+async function handleVoiceAgent(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const enrichment = lead.enrichment || await enrichLead(lead);
+  const token = lead.voiceAgent?.token || 'voice_' + crypto.randomBytes(9).toString('hex');
+  let provisioned = lead.voiceAgent?.provisioned || null;
+  let note = 'Config pack ready. Set VAPI_API_KEY to provision a live agent in one click.';
+  if (voiceConfigured() && lead.source !== 'demo') {
+    try {
+      provisioned = await provisionVapi(lead, enrichment);
+      note = `Live Vapi assistant created. Attach a phone number in your Vapi dashboard to take calls.`;
+    } catch (err) {
+      note = `Config pack ready. Live provisioning failed: ${err.message}`;
+    }
+  }
+  const voiceAgent = { token, generatedAt: new Date().toISOString(), provisioned };
+  const updated = db.updateLead(leadId, { voiceAgent });
+  json(res, 200, { lead: updated, url: `/voice/${token}.html`, provider: voiceConfigured() ? 'vapi' : 'config-pack', provisioned, note });
+}
+
+function serveVoicePack(res, token) {
+  const lead = db.getLeadByVoiceToken(token);
+  if (!lead) return json(res, 404, { error: 'Voice config not found' });
+  const html = renderVoiceConfigPack(lead, lead.enrichment || {}, { agency: pricingConfig().agency });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
+}
+
 function serveProposal(res, token) {
   const lead = db.getLeadByProposalToken(token);
   if (!lead || !lead.siteId) return json(res, 404, { error: 'Proposal not found' });
@@ -616,6 +647,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/outreach$/)) && req.method === 'POST') return await handleOutreach(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/proposal$/)) && req.method === 'POST') return await handleProposal(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/seo-report$/)) && req.method === 'POST') return handleSeoReport(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/voice-agent$/)) && req.method === 'POST') return await handleVoiceAgent(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/client$/)) && req.method === 'POST') return await handleClientCreate(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/invoice$/)) && req.method === 'POST') return await handleInvoiceIssue(req, res, m[1]);
     if ((m = p.match(/^\/api\/invoices\/(\d+)\/paid$/)) && req.method === 'POST') return handleInvoicePaid(res, m[1]);
@@ -661,6 +693,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
     if ((m = p.match(/^\/proposals\/([\w-]+)\.html$/))) return serveProposal(res, m[1]);
     if ((m = p.match(/^\/reports\/([\w-]+)\.html$/))) return serveSeoReport(res, m[1]);
+    if ((m = p.match(/^\/voice\/([\w-]+)\.html$/))) return serveVoicePack(res, m[1]);
     if ((m = p.match(/^\/invoices\/([\w-]+)\.html$/))) return serveInvoice(res, m[1]);
 
     // Static frontend.

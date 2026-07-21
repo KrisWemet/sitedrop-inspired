@@ -80,6 +80,15 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   self-contained `<svg>`; `starRow(rating)` builds review stars;
   `industryIcon(industry)` maps to an accent glyph. Zero runtime dep — paths
   are baked in. Use sparingly (never the banned icon-tile-above-heading).
+- `lib/voice.js` — voice-agent upsell (AI phone receptionist). KEYLESS core:
+  `buildAssistantConfig`/`buildSystemPrompt` turn the lead into a full spec
+  (system prompt with hard no-fabrication + no-price-guessing + always-take-a-
+  message rules, greeting, services/hours/booking knowledge);
+  `renderVoiceConfigPack` serves it at a `voice_` token URL as a paste-ready
+  deliverable. `provisionVapi` POSTs the spec to api.vapi.ai (needs
+  `VAPI_API_KEY`) to create a live assistant — it never buys a phone number
+  (that bills the operator's Vapi account); demo leads are refused. Plain
+  fetch, mocked-fetch tested.
 - `lib/seo-report.js` — white-label monthly "Search & AI visibility report"
   (care-plan deliverable) at an unguessable `rpt_` token URL, noindex.
   Renders PURELY from data the app has (checklist status, keyword targets,

@@ -512,6 +512,27 @@ function drawLead(lead, opts = {}) {
     setTimeout(() => { const b = document.getElementById('copyProposalBtn'); if (b) b.textContent = 'Copy link'; }, 1500);
   });
 
+  document.getElementById('voiceBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Building…';
+    try {
+      const r = await post(`/api/leads/${lead.id}/voice-agent`);
+      if (r?.note) setTimeout(() => alert(r.note), 50);
+      renderLead(lead.id);
+    } catch (err) { btn.disabled = false; alert('Voice agent failed: ' + err.message); }
+  });
+
+  document.getElementById('seoReportBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Building…';
+    try {
+      await post(`/api/leads/${lead.id}/seo-report`);
+      renderLead(lead.id);
+    } catch (err) { btn.disabled = false; alert('SEO report failed: ' + err.message); }
+  });
+
   document.getElementById('createClientBtn')?.addEventListener('click', async () => {
     const setup = Number(document.getElementById('setupAmt').value);
     const monthly = Number(document.getElementById('monthlyAmt').value);
@@ -748,7 +769,24 @@ function billingHtml(lead, opts) {
         ${invRows}
       </div>`;
   }
-  return proposalBlock + planBlock;
+  // Upsell deliverables — available once a site exists, independent of the
+  // sales stage. Each is one click and fully built (see notes on keys).
+  const voiceUrl = lead.voiceAgent ? `/voice/${lead.voiceAgent.token}.html` : null;
+  const reportUrl = lead.seoReport ? `/reports/${lead.seoReport.token}.html` : null;
+  const upsellBlock = lead.siteId ? `
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <h3 style="font-size:0.98rem">Premium upsells</h3>
+      <p class="hint">One-click add-ons that turn a $2k site into a $5k package. Each is built from this business's real data.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="btn small ${voiceUrl ? 'secondary' : 'accent'}" id="voiceBtn">${voiceUrl ? '↻ Rebuild voice agent' : '☎️ Voice agent'}</button>
+        ${voiceUrl ? `<a class="btn small secondary" href="${voiceUrl}" target="_blank" rel="noopener">Config pack ↗</a>` : ''}
+        <button class="btn small ${reportUrl ? 'secondary' : 'accent'}" id="seoReportBtn">${reportUrl ? '↻ Rebuild SEO report' : '📈 SEO/AEO report'}</button>
+        ${reportUrl ? `<a class="btn small secondary" href="${reportUrl}" target="_blank" rel="noopener">Open report ↗</a>` : ''}
+      </div>
+      <p class="hint" style="margin-top:8px">Voice agent: keyless mode delivers a paste-ready config pack; set <code>VAPI_API_KEY</code> to provision a live phone assistant in one click.</p>
+    </div>` : '';
+
+  return proposalBlock + upsellBlock + planBlock;
 }
 
 // ---------- sites gallery ----------
