@@ -22,8 +22,12 @@ pitch links), `AUTOPILOT_MAX_PER_RUN` (default 5),
 `AUTOPILOT_DAILY_GEN_CAP` (default 20), `PEXELS_API_KEY` (licensed stock
 photos), `GOOGLE_PLACES_API_KEY` (storefront photo, preview only),
 `AGENCY_NAME`/`AGENCY_EMAIL`/`AGENCY_PHONE`/`AGENCY_ADDRESS`/`AGENCY_WEBSITE`
-+ `PRICE_SETUP` (2000) / `PRICE_MONTHLY` (250) / `AGENCY_TAX_RATE` (0)
-(proposals + invoices).
++ `PRICE_SETUP` (2000) / `PRICE_MONTHLY` (250) / `PRICE_PREMIUM` (5000) /
+`PRICE_PREMIUM_MONTHLY` (500) + per-add-on `PRICE_VOICE_SETUP` (750) /
+`PRICE_VOICE_MONTHLY` (150) / `PRICE_REVIEWS_*` / `PRICE_SEO_*` /
+`AGENCY_TAX_RATE` (0) (proposals + invoices), `VAPI_API_KEY`
+(+ `VAPI_MODEL`/`VAPI_VOICE_ID`) for one-click live voice-agent provisioning.
+A local gitignored `.env` is auto-loaded by server.js (real env vars win).
 
 ## How to verify changes end-to-end
 
