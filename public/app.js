@@ -302,6 +302,13 @@ function drawLead(lead, opts = {}) {
         <div class="field" style="margin-top:10px"><label>Contact-form endpoint (Formspree, Basin, Web3Forms…)</label><input id="formEndpoint" placeholder="https://formspree.io/f/xxxxxxx" value="${esc(lead.cta?.formEndpoint || '')}"></div>
         <button class="btn small ghost" id="ctaSaveBtn" style="margin-top:10px">Save lead-capture settings</button>
       </details>
+      <details class="conv-box" ${(lead.reviews?.length) ? 'open' : ''}>
+        <summary>Customer reviews — testimonials &amp; star rating (${(lead.reviews || []).length})</summary>
+        <p class="hint" style="margin:8px 0">Add <strong>real</strong> reviews only — copy them from the business's Google/Facebook listing or from messages the owner has permission to share. These render as a testimonials section with a star rating and feed the site's Review schema. Never invent a review; a fabricated testimonial is illegal and a fake-star manual-action risk. Regenerate after saving.</p>
+        <div id="reviewRows">${(lead.reviews || []).map((r, i) => reviewRowHtml(r, i)).join('')}</div>
+        <button class="btn small ghost" id="reviewAddBtn" style="margin-top:8px">+ Add review</button>
+        <button class="btn small" id="reviewSaveBtn" style="margin-top:8px">Save reviews</button>
+      </details>
       <button class="btn" id="genBtn" style="margin-top:14px">⚡ ${lead.siteId ? 'Regenerate Website' : 'Generate Website'}</button>
       <div id="seoArea">${opts.site?.seoChecklist ? seoChecklistHtml(opts.site) : ''}</div>
       <div id="previewArea">${lead.siteId ? previewHtml(lead.siteId, opts.site, opts.publishConfigured) : ''}</div>
@@ -463,6 +470,32 @@ function drawLead(lead, opts = {}) {
     }
   });
 
+  document.getElementById('reviewAddBtn')?.addEventListener('click', () => {
+    const rows = document.getElementById('reviewRows');
+    rows.insertAdjacentHTML('beforeend', reviewRowHtml({ rating: 5 }, rows.children.length));
+    rows.querySelectorAll('[data-review-del]').forEach(bindReviewDelete);
+  });
+  document.querySelectorAll('[data-review-del]').forEach(bindReviewDelete);
+
+  document.getElementById('reviewSaveBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.textContent = 'Saving…';
+    const reviews = [...document.querySelectorAll('#reviewRows .review-row')].map((row) => ({
+      author: row.querySelector('[data-f=author]').value.trim(),
+      rating: Number(row.querySelector('[data-f=rating]').value),
+      text: row.querySelector('[data-f=text]').value.trim(),
+      source: row.querySelector('[data-f=source]').value.trim(),
+    })).filter((r) => r.author && r.text);
+    try {
+      await patch(`/api/leads/${lead.id}`, { reviews });
+      btn.textContent = '✓ Saved — regenerate to apply';
+      setTimeout(() => renderLead(lead.id), 900);
+    } catch (err) {
+      btn.textContent = 'Save reviews';
+      alert('Could not save reviews: ' + err.message);
+    }
+  });
+
   document.getElementById('proposalBtn')?.addEventListener('click', async (ev) => {
     const btn = ev.currentTarget;
     btn.disabled = true;
@@ -605,6 +638,22 @@ function previewHtml(siteId, site, publishConfigured) {
       </span>
     </div>
     <iframe class="preview-frame" src="${url}" title="Generated website preview"></iframe>`;
+}
+
+function reviewRowHtml(r = {}, i = 0) {
+  const stars = [5, 4, 3, 2, 1].map((n) => `<option value="${n}" ${Number(r.rating) === n ? 'selected' : ''}>${'★'.repeat(n)}${'☆'.repeat(5 - n)}</option>`).join('');
+  return `<div class="review-row" data-i="${i}">
+    <div class="review-row-top">
+      <input data-f="author" placeholder="Customer name" value="${esc(r.author || '')}">
+      <select data-f="rating">${stars}</select>
+      <input data-f="source" placeholder="Source (Google…)" value="${esc(r.source || '')}">
+      <button class="btn small ghost" data-review-del title="Remove">✕</button>
+    </div>
+    <textarea data-f="text" rows="2" placeholder="What the customer wrote (their real words)">${esc(r.text || '')}</textarea>
+  </div>`;
+}
+function bindReviewDelete(btn) {
+  btn.addEventListener('click', () => btn.closest('.review-row')?.remove());
 }
 
 function seoChecklistHtml(site) {

@@ -160,6 +160,11 @@ table.leads tr:hover td { background: var(--surface-2); }
 .conv-box { margin: 14px 0 4px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; background: var(--bg-soft); }
 .conv-box summary { cursor: pointer; font-weight: 600; font-size: 0.92rem; }
 .conv-box .field input { max-width: 460px; }
+.review-row { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 8px 0; background: var(--bg); }
+.review-row-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.review-row-top input { flex: 1; min-width: 120px; }
+.review-row-top select { padding: 6px; }
+.review-row textarea { width: 100%; resize: vertical; font-family: inherit; }
 
 /* image manager */
 .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 14px; }

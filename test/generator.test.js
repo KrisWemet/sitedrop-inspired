@@ -112,6 +112,30 @@ test('amenity chips from OSM extraTags are rendered', async () => {
   assert.ok(html.includes('Outdoor seating'));
 });
 
+test('reviews render a testimonials section + honest Review/AggregateRating schema, and are absent otherwise', async () => {
+  const reviews = [
+    { author: 'Dana R.', rating: 5, text: 'Best cut in years — they actually listened.', source: 'Google' },
+    { author: 'Priya S.', rating: 4, text: 'Lovely space and great color work.', source: null },
+  ];
+  const withRev = { ...lead, reviews };
+  const { html } = generateSite(withRev, await enrichLead(withRev), 'elegant');
+  assert.ok(html.includes('id="reviews"'), 'testimonials section renders');
+  assert.ok(html.includes('Best cut in years'), 'review text present');
+  assert.ok((html.match(/class="star /g) || []).length >= 10, 'star icons render (2 reviews + average)');
+  const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].map((m) => JSON.parse(m[1]));
+  const biz = blocks.find((b) => b.aggregateRating);
+  assert.ok(biz, 'AggregateRating present in JSON-LD');
+  assert.equal(biz.aggregateRating.reviewCount, 2);
+  assert.equal(biz.aggregateRating.ratingValue, '4.5');
+  assert.ok(Array.isArray(biz.review) && biz.review.length === 2, 'Review array matches entries');
+  assert.equal(biz.review[0]['@type'], 'Review');
+
+  // No reviews → no section, no rating markup (never fabricated).
+  const plain = generateSite(lead, await enrichLead(lead), 'elegant').html;
+  assert.ok(!plain.includes('id="reviews"'), 'no testimonials section without reviews');
+  assert.ok(!plain.includes('AggregateRating'), 'no rating schema without reviews');
+});
+
 // Regression guards derived from pbakaus/impeccable's anti-pattern detectors.
 test('impeccable guards: no eyebrow chips, no accent stripes, low em-dash count', async () => {
   const profile = await enrichLead(lead);

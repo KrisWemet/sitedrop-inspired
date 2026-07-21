@@ -71,7 +71,20 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   FIRST so a fake contact can never reach the page or the JSON-LD.
 - `lib/generator.js` — renders the final self-contained HTML (inline CSS,
   inline SVG, no external assets, no JS). Returns `{ html, faqs, keywords,
-  checklist, title, description }`. Four themes in `THEMES`.
+  checklist, title, description }`. Four themes in `THEMES`. Renders a
+  testimonials section (`renderReviews`) ONLY from real `lead.reviews[]`
+  (author/rating/text/source) — never fabricated — the same entries that
+  feed the Review+AggregateRating JSON-LD in seo.js.
+- `lib/icons.js` — curated inline-SVG icon set vendored from Lucide (ISC,
+  see `assets/lucide/LICENSE`). `icon(name,{size,fill,cls,label})` inlines a
+  self-contained `<svg>`; `starRow(rating)` builds review stars;
+  `industryIcon(industry)` maps to an accent glyph. Zero runtime dep — paths
+  are baked in. Use sparingly (never the banned icon-tile-above-heading).
+- `lib/seo-report.js` — white-label monthly "Search & AI visibility report"
+  (care-plan deliverable) at an unguessable `rpt_` token URL, noindex.
+  Renders PURELY from data the app has (checklist status, keyword targets,
+  AEO/schema state, entered reviews, GBP checklist, seeded content plan) —
+  contains NO invented metrics (no fake traffic/rankings); says so on the page.
 - `lib/verify.js` — web-presence verification: probes listed sites (dead/
   parked/social-only detection) and DNS+HTTP-probes slug-guessed domains for
   no-website leads.

@@ -19,6 +19,7 @@ import { imageProviders, stockCandidates, attachStockImage, fetchStorefront, att
 import { pricingConfig, buildClient, buildInvoiceRecord, advanceRetainer } from './lib/billing.js';
 import { renderInvoiceHtml } from './lib/invoice.js';
 import { renderProposalHtml } from './lib/proposal.js';
+import { renderSeoReportHtml } from './lib/seo-report.js';
 import crypto from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -229,7 +230,23 @@ async function handleLeadPatch(req, res, leadId) {
     patch.cta = {
       bookingUrl: httpUrl(body.cta.bookingUrl),
       formEndpoint: httpUrl(body.cta.formEndpoint),
+      googleReviewUrl: httpUrl(body.cta.googleReviewUrl),
     };
+  }
+  if (body.reviews !== undefined) {
+    // REAL customer reviews only, entered by the operator (copied from Google,
+    // texts, emails — with the customer's OK). The app never invents one, and
+    // the UI says so. Validated + capped so nothing unbounded reaches a page.
+    if (!Array.isArray(body.reviews)) return json(res, 400, { error: 'reviews must be an array' });
+    const cleaned = [];
+    for (const r of body.reviews.slice(0, 12)) {
+      const rating = Math.round(Number(r.rating));
+      const author = String(r.author || '').trim().slice(0, 80);
+      const text = String(r.text || '').trim().slice(0, 600);
+      if (!author || !text || !(rating >= 1 && rating <= 5)) continue;
+      cleaned.push({ author, rating, text, source: String(r.source || '').trim().slice(0, 40) || null });
+    }
+    patch.reviews = cleaned;
   }
   json(res, 200, { lead: db.updateLead(leadId, patch) });
 }
@@ -301,6 +318,29 @@ async function handleProposal(req, res, leadId) {
   const proposal = { token, generatedAt: new Date().toISOString() };
   const updated = db.updateLead(leadId, { proposal, siteId });
   json(res, 200, { lead: updated, url: `/proposals/${token}.html` });
+}
+
+// One-click SEO/AEO care-plan report: mint (or reuse) the unguessable token
+// and hand back the URL. The report itself renders live at serve time so it
+// always reflects the current site state.
+function handleSeoReport(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  if (!lead.siteId || !db.getSite(lead.siteId)) {
+    return json(res, 400, { error: 'Generate the website first — the report reads its SEO/AEO state.' });
+  }
+  const token = lead.seoReport?.token || 'rpt_' + crypto.randomBytes(9).toString('hex');
+  const updated = db.updateLead(leadId, { seoReport: { token, generatedAt: new Date().toISOString() } });
+  json(res, 200, { lead: updated, url: `/reports/${token}.html` });
+}
+
+function serveSeoReport(res, token) {
+  const lead = db.getLeadBySeoReportToken(token);
+  if (!lead || !lead.siteId) return json(res, 404, { error: 'Report not found' });
+  const site = db.getSite(lead.siteId);
+  const html = renderSeoReportHtml(lead, site, { pricing: pricingConfig() });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(html);
 }
 
 function serveProposal(res, token) {
@@ -575,6 +615,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/verify$/)) && req.method === 'POST') return await handleVerify(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/outreach$/)) && req.method === 'POST') return await handleOutreach(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/proposal$/)) && req.method === 'POST') return await handleProposal(req, res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/seo-report$/)) && req.method === 'POST') return handleSeoReport(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/client$/)) && req.method === 'POST') return await handleClientCreate(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/invoice$/)) && req.method === 'POST') return await handleInvoiceIssue(req, res, m[1]);
     if ((m = p.match(/^\/api\/invoices\/(\d+)\/paid$/)) && req.method === 'POST') return handleInvoicePaid(res, m[1]);
@@ -619,6 +660,7 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/sites\/([\w-]+)\.html$/))) return handleSiteHtml(res, m[1], url.searchParams.has('download'));
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
     if ((m = p.match(/^\/proposals\/([\w-]+)\.html$/))) return serveProposal(res, m[1]);
+    if ((m = p.match(/^\/reports\/([\w-]+)\.html$/))) return serveSeoReport(res, m[1]);
     if ((m = p.match(/^\/invoices\/([\w-]+)\.html$/))) return serveInvoice(res, m[1]);
 
     // Static frontend.
