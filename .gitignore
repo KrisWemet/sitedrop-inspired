@@ -5,3 +5,6 @@ node_modules/
 # local secrets — real keys live here, never committed (.env.example is the template)
 .env
 .env.local
+
+# personal Claude Code overrides (the shared hook config lives in .claude/settings.json)
+.claude/settings.local.json
