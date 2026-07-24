@@ -136,6 +136,44 @@ test('reviews render a testimonials section + honest Review/AggregateRating sche
   assert.ok(!plain.includes('AggregateRating'), 'no rating schema without reviews');
 });
 
+test('conversion architecture: hook, promises, big CTA, how-it-works, sticky mobile bar', async () => {
+  const profile = await enrichLead(lead);
+  const { html } = generateSite(lead, profile, 'elegant');
+  // The hook is a distinct conversion line, and template slots never leak.
+  assert.notEqual(profile.hook, profile.tagline, 'hook is not just the mood tagline');
+  assert.ok(!/\{city\}|\{cat\}/.test(profile.hook), 'no unsubstituted placeholders');
+  assert.ok(html.includes('<ul class="promise">'), 'concrete promises above the fold');
+  assert.equal(profile.promise.length, 3);
+  assert.ok(html.includes('<a class="btn btn-lg"'), 'outcome-framed primary CTA');
+  assert.ok(html.includes('id="how"'), 'how-it-works removes post-click anxiety');
+  assert.ok(html.includes('<div class="sticky-cta"'), 'mobile thumb-zone CTA');
+  // Sticky bar and steps must not break the no-JS invariant.
+  assert.ok(!/<script(?![^>]*application\/ld\+json)/.test(html), 'still zero executable JS');
+});
+
+test('trust signals render ONLY from real data — nothing is invented', async () => {
+  // A bare lead (no reviews, no proof, no amenities) must claim nothing.
+  const bare = { ...lead, extraTags: {} };
+  const bareHtml = generateSite(bare, await enrichLead(bare), 'bold').html;
+  assert.ok(!bareHtml.includes('<ul class="trust-bar">'), 'no trust bar without real signals');
+  assert.ok(!bareHtml.includes('<p class="cta-micro">'), 'no guarantee microcopy without an entered guarantee');
+  assert.ok(!/Licensed|insured|since 19|since 20/i.test(bareHtml.slice(bareHtml.indexOf('<body'))), 'no invented credentials');
+
+  // With operator-entered proof + real reviews, each signal appears verbatim.
+  const proven = {
+    ...lead,
+    proof: { since: '1998', responseTime: 'under an hour', guarantee: 'Free quotes, no obligation', credentials: 'Licensed & insured' },
+    reviews: [{ author: 'D. R.', rating: 5, text: 'Same-day and no surprises on the bill.', source: 'Google' }],
+  };
+  const html = generateSite(proven, await enrichLead(proven), 'bold').html;
+  assert.ok(html.includes('Serving Milltown, OR since 1998'));
+  assert.ok(html.includes('Licensed &amp; insured'));
+  assert.ok(html.includes('Replies in under an hour'));
+  assert.ok(html.includes('Free quotes, no obligation'), 'risk reversal under the CTA');
+  assert.ok(html.includes('cta-proof'), 'a real review sits at the decision point');
+  assert.equal((html.match(/class="star on"/g) || []).length >= 5, true, 'trust-bar stars actually fill');
+});
+
 // Regression guards derived from pbakaus/impeccable's anti-pattern detectors.
 test('impeccable guards: no eyebrow chips, no accent stripes, low em-dash count', async () => {
   const profile = await enrichLead(lead);
@@ -218,7 +256,10 @@ test('no-photo leads get the compact hero: name as mark, tagline as h1, no motif
     assert.ok(html.includes('hero-compact'), `${theme}: compact hero for photo-less leads`);
     assert.ok(html.includes(`<p class="brand-mark">${'Luna Nails &amp; Spa'}</p>`), `${theme}: name renders as the mark`);
     const h1 = html.match(/<h1>(.*?)<\/h1>/s)[1];
-    assert.equal(h1, profile.tagline.replaceAll('&', '&amp;'), `${theme}: tagline carries the h1`);
+    // The h1 is the conversion hook (outcome + city), not the mood tagline —
+    // the tagline drops to the supporting line beneath it.
+    assert.equal(h1, profile.hook.replaceAll('&', '&amp;'), `${theme}: hook carries the h1`);
+    assert.ok(html.includes(`<p class="lead">${profile.tagline.replaceAll('&', '&amp;')}</p>`), `${theme}: tagline supports`);
     assert.ok(!/<section class="hero[^"]*"[^>]*>\s*<svg/.test(html), `${theme}: no faint motif in the compact hero`);
   }
 });
@@ -234,12 +275,19 @@ test('hours fold into the contact band as a per-day strip with a Closed row', as
 
 const CONTACT_PHONE_ICON = 'M22 16.9v3a2 2 0 0 1-2.2 2';
 
-test('honest CTAs: transactional labels only when a booking or form exists', async () => {
+test('honest CTAs: a transactional label must actually start that transaction', async () => {
   const profile = await enrichLead(lead);
-  // No booking, no form: the beauty KB's "Book an Appointment" must not render.
   const plain = generateSite(lead, profile, 'elegant').html;
-  assert.ok(!plain.includes('Book an Appointment'), 'no booking promise without a booking channel');
+  // The primary CTA may say "Book an Appointment" ONLY because it is a tel:
+  // link that dials the business and shows the number on the button itself —
+  // calling is how you book here. It must never be a link that dead-ends.
+  const primary = plain.match(/<a class="btn btn-lg"[^>]*href="([^"]+)"[\s\S]*?<\/a>/);
+  assert.ok(primary, 'primary CTA renders');
+  assert.ok(primary[1].startsWith('tel:'), 'phone-only lead: the outcome CTA dials');
+  assert.ok(primary[0].includes('(555) 203-5561'), 'the number is visible on the button, so the action is obvious');
+  // The secondary CTA still must not promise an action the page cannot do.
   assert.ok(plain.includes('See Hours &amp; Location'), 'secondary CTA says where it actually goes');
+  assert.ok(!/class="btn ghost"[^>]*>Book an Appointment/.test(plain), 'no dead-end booking promise');
   // With a booking link the transactional label returns.
   const booked = generateSite({ ...lead, cta: { bookingUrl: 'https://calendly.com/luna' } }, profile, 'elegant').html;
   assert.ok(booked.includes('Book an Appointment'));

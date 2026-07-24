@@ -160,6 +160,23 @@ seed-picked from the theme's allowed list via `profile.layoutSeed`), brand
 treatment, typographic tokens, abstract per-industry-group SVG motifs
 (6 groups; keep them abstract — literal clip-art reads worse than nothing).
 
+Conversion architecture (guarded by the "conversion architecture" and "trust
+signals render ONLY from real data" tests): the h1 is the **hook** from
+enrich.js `CONVERSION` (outcome + real city, e.g. "Need a plumber in Milltown?
+Start with a free quote."), NOT the mood tagline — the tagline drops to the
+supporting `.lead` line. Under it: three concrete `promise` bullets, an
+outcome-framed primary CTA (`.btn-lg`, label = result, phone number as the
+`<small>` sub-label on a `tel:` link so the action is unmistakable),
+`ctaMicrocopy` risk reversal, then the `trust-bar`. A `sticky-cta` call bar
+occupies the mobile thumb zone (CSS-only, ≤760px, hidden in print).
+`renderSteps` adds a genuinely sequential "How it works" (numbers are
+legitimate ONLY because it is a real sequence), and `renderContactProof` puts
+the highest-rated real review at the contact decision point.
+**Nothing is invented**: the trust bar renders only from real reviews, OSM
+amenity tags, and operator-entered `lead.proof` ({since, responseTime,
+guarantee, credentials}); an unfilled field renders nothing. A transactional
+CTA label is allowed only when the click actually starts that transaction.
+
 Content-adaptive layout (from the /impeccable critique; guarded by the
 "no-photo leads get the compact hero" tests): a lead with NO photo gets the
 compact hero on every theme — name as a letterspaced mark, tagline as the

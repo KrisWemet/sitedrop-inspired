@@ -303,6 +303,17 @@ function drawLead(lead, opts = {}) {
         <div class="field" style="margin-top:10px"><label>Google review link (for the review funnel — from the business's Google profile "Ask for reviews")</label><input id="googleReviewUrl" placeholder="https://g.page/r/xxxx/review" value="${esc(lead.cta?.googleReviewUrl || '')}"></div>
         <button class="btn small ghost" id="ctaSaveBtn" style="margin-top:10px">Save lead-capture settings</button>
       </details>
+      <details class="conv-box" ${(lead.proof && Object.values(lead.proof).some(Boolean)) ? 'open' : ''}>
+        <summary>Trust &amp; proof — what makes the hero convert</summary>
+        <p class="hint" style="margin:8px 0">These are the specifics that turn a generic page into a persuasive one. They appear in the hero trust bar and under the call button. Only fill in what the <strong>owner can stand behind</strong> — every field is optional and blank ones simply don't render. Regenerate after saving.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="field"><label>In business since</label><input id="proofSince" placeholder="1998" style="width:110px" value="${esc(lead.proof?.since || '')}"></div>
+          <div class="field"><label>Typical response time</label><input id="proofResponse" placeholder="under an hour" style="width:170px" value="${esc(lead.proof?.responseTime || '')}"></div>
+        </div>
+        <div class="field" style="margin-top:10px"><label>Risk reversal / guarantee</label><input id="proofGuarantee" placeholder="Free written quotes, no obligation" value="${esc(lead.proof?.guarantee || '')}"></div>
+        <div class="field" style="margin-top:10px"><label>Credentials</label><input id="proofCredentials" placeholder="Licensed &amp; insured · CCB #201884" value="${esc(lead.proof?.credentials || '')}"></div>
+        <button class="btn small ghost" id="proofSaveBtn" style="margin-top:10px">Save trust details</button>
+      </details>
       <details class="conv-box" ${(lead.reviews?.length) ? 'open' : ''}>
         <summary>Customer reviews — testimonials &amp; star rating (${(lead.reviews || []).length})</summary>
         <p class="hint" style="margin:8px 0">Add <strong>real</strong> reviews only — copy them from the business's Google/Facebook listing or from messages the owner has permission to share. These render as a testimonials section with a star rating and feed the site's Review schema. Never invent a review; a fabricated testimonial is illegal and a fake-star manual-action risk. Regenerate after saving.</p>
@@ -468,6 +479,26 @@ function drawLead(lead, opts = {}) {
       setTimeout(() => { const b = document.getElementById('ctaSaveBtn'); if (b) b.textContent = 'Save lead-capture settings'; }, 2500);
     } catch (err) {
       btn.textContent = 'Save lead-capture settings';
+      alert('Could not save: ' + err.message);
+    }
+  });
+
+  document.getElementById('proofSaveBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.textContent = 'Saving…';
+    try {
+      await patch(`/api/leads/${lead.id}`, {
+        proof: {
+          since: document.getElementById('proofSince').value.trim(),
+          responseTime: document.getElementById('proofResponse').value.trim(),
+          guarantee: document.getElementById('proofGuarantee').value.trim(),
+          credentials: document.getElementById('proofCredentials').value.trim(),
+        },
+      });
+      btn.textContent = '✓ Saved — regenerate to apply';
+      setTimeout(() => { const b = document.getElementById('proofSaveBtn'); if (b) b.textContent = 'Save trust details'; }, 2500);
+    } catch (err) {
+      btn.textContent = 'Save trust details';
       alert('Could not save: ' + err.message);
     }
   });

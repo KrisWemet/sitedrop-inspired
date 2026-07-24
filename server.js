@@ -235,6 +235,19 @@ async function handleLeadPatch(req, res, leadId) {
       googleReviewUrl: httpUrl(body.cta.googleReviewUrl),
     };
   }
+  if (body.proof !== undefined) {
+    // Operator-entered specifics that make the hero concrete (years in
+    // business, response time, guarantee, credentials). These are claims the
+    // OWNER stands behind — the app never invents them, and an empty field
+    // simply doesn't render.
+    const t = (v, n) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
+    patch.proof = {
+      since: t(body.proof.since, 12),
+      responseTime: t(body.proof.responseTime, 40),
+      guarantee: t(body.proof.guarantee, 120),
+      credentials: t(body.proof.credentials, 120),
+    };
+  }
   if (body.reviews !== undefined) {
     // REAL customer reviews only, entered by the operator (copied from Google,
     // texts, emails — with the customer's OK). The app never invents one, and
