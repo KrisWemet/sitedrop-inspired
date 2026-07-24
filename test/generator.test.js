@@ -142,7 +142,7 @@ test('conversion architecture: hook, promises, big CTA, how-it-works, sticky mob
   // The hook is a distinct conversion line, and template slots never leak.
   assert.notEqual(profile.hook, profile.tagline, 'hook is not just the mood tagline');
   assert.ok(!/\{city\}|\{cat\}/.test(profile.hook), 'no unsubstituted placeholders');
-  assert.ok(html.includes('<ul class="promise">'), 'concrete promises above the fold');
+  assert.ok(html.includes("<p class=\"promise\">"), "concrete promises above the fold");
   assert.equal(profile.promise.length, 3);
   assert.ok(html.includes('<a class="btn btn-lg"'), 'outcome-framed primary CTA');
   assert.ok(html.includes('id="how"'), 'how-it-works removes post-click anxiety');

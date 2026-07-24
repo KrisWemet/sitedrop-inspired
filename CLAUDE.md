@@ -210,6 +210,22 @@ copy (AI cadence tell — write KB copy with commas/colons/periods), no nested
 cards (the contact CTA panel is deliberately flat), no hairline-border +
 wide-shadow combos, body text measures ≤ ~70ch.
 
+**MANDATORY: use the impeccable skill for ALL generated-site design work.**
+Any change to `lib/generator.js`, `lib/icons.js`, theme tokens, or the copy in
+`lib/enrich.js` must go through it — not just the detector:
+1. Invoke the skill (`/impeccable audit|critique|polish <target>`) and read
+   `reference/brand.md` (these are marketing pages: design IS the product).
+2. Run `node .claude/skills/impeccable/scripts/detect.mjs` on all four themes.
+3. Apply `brand.md`'s **inverse test**: describe the page the way a competitor
+   would describe theirs. If that sentence fits the modal landing page in the
+   category, it is slop — restart. (This is what caught the gradient-hero +
+   three-✓-bullets + big-button stack; the detector reported zero findings on
+   it. **A clean detector is necessary, not sufficient.**)
+4. Never use a font on `brand.md`'s reflex-reject list, even as a stack
+   fallback (Playfair Display, Fraunces, Inter, Cormorant, DM Sans, …).
+The detector hook is enabled (`.impeccable/config.json`) so it auto-runs after
+UI edits; treat its findings as blocking.
+
 The full impeccable skill is vendored at `.claude/skills/impeccable/`
 (Apache-2.0, v3.9.1) so `/impeccable audit|critique|polish|…` and its
 detector run offline. Audit a rendered page directly with
