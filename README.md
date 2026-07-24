@@ -91,6 +91,15 @@ npm start        # → http://localhost:3000
    - **Review funnel** — a shareable/printable `review.html` that invites public
      Google reviews *and* offers private feedback openly to everyone (no review
      gating — FTC- and Google-policy-safe), shipped in the deploy pack.
+   - **Lead tracking & proof of value** — the reason a retainer survives. The
+     contact form posts through your server (still **zero JavaScript** on the
+     site) and a tracked number forwards to their real line, so every enquiry
+     is a logged, timestamped event. The owner gets an instant alert
+     (speed-to-lead: first to reply usually wins the job), spam caught by the
+     honeypot never counts, and the monthly report opens with **"your site
+     produced 23 enquiries this month"** instead of a checklist. Enter their
+     average job value and it shows estimated booked work — labelled as
+     arithmetic on *their* numbers, never a measured claim.
    - **Search & AI visibility report** — a white-label monthly deliverable at an
      unguessable link: real checklist/keyword/AEO/GBP status and a content plan,
      with **no invented traffic or ranking numbers**.

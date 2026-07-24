@@ -22,6 +22,8 @@ import { renderInvoiceHtml } from './lib/invoice.js';
 import { renderProposalHtml } from './lib/proposal.js';
 import { renderSeoReportHtml } from './lib/seo-report.js';
 import { voiceConfigured, provisionVapi, renderVoiceConfigPack } from './lib/voice.js';
+import { recordEvent, monthlyRollup, newCaptureToken, totals as attributionTotals } from './lib/attribution.js';
+import { sendMail, mailerStatus } from './lib/mailer.js';
 import crypto from 'node:crypto';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -235,6 +237,33 @@ async function handleLeadPatch(req, res, leadId) {
       googleReviewUrl: httpUrl(body.cta.googleReviewUrl),
     };
   }
+  if (body.capture !== undefined) {
+    // Lead capture + attribution wiring. The token is minted once and kept
+    // stable so a live site's form action never breaks on re-save.
+    const existing = lead.capture || {};
+    const trackedNumber = typeof body.capture.trackedNumber === 'string' && body.capture.trackedNumber.trim()
+      ? body.capture.trackedNumber.trim().slice(0, 40) : null;
+    const notifyEmail = typeof body.capture.notifyEmail === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.capture.notifyEmail.trim())
+      ? body.capture.notifyEmail.trim().slice(0, 160) : null;
+    patch.capture = {
+      token: existing.token || newCaptureToken(),
+      enabled: body.capture.enabled !== false,
+      trackedNumber,
+      notifyEmail,
+    };
+  }
+  if (body.economics !== undefined) {
+    // The client's OWN numbers. Used only to turn real enquiry counts into a
+    // clearly-labelled value estimate — never to invent a metric.
+    const n = (v, max) => {
+      const x = Math.round(Number(v));
+      return Number.isFinite(x) && x > 0 && x <= max ? x : null;
+    };
+    patch.economics = {
+      avgJobValue: n(body.economics.avgJobValue, 1e7),
+      closeRate: n(body.economics.closeRate, 100),
+    };
+  }
   if (body.proof !== undefined) {
     // Operator-entered specifics that make the hero concrete (years in
     // business, response time, guarantee, credentials). These are claims the
@@ -353,7 +382,10 @@ function serveSeoReport(res, token) {
   const lead = db.getLeadBySeoReportToken(token);
   if (!lead || !lead.siteId) return json(res, 404, { error: 'Report not found' });
   const site = db.getSite(lead.siteId);
-  const html = renderSeoReportHtml(lead, site, { pricing: pricingConfig() });
+  const html = renderSeoReportHtml(lead, site, {
+    pricing: pricingConfig(),
+    leads: monthlyRollup(lead.id, { economics: lead.economics || {} }),
+  });
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(html);
 }
@@ -386,6 +418,133 @@ function serveVoicePack(res, token) {
   const html = renderVoiceConfigPack(lead, lead.enrichment || {}, { agency: pricingConfig().agency });
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(html);
+}
+
+// ---------- attribution: lead capture & call logging ----------
+
+// Read a urlencoded form body (the site posts natively; readBody is JSON-only).
+function readFormBody(req, limit = 1e5) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+      if (data.length > limit) { reject(new Error('Body too large')); req.destroy(); }
+    });
+    req.on('end', () => {
+      const out = {};
+      for (const [k, v] of new URLSearchParams(data)) out[k] = v;
+      resolve(out);
+    });
+    req.on('error', reject);
+  });
+}
+
+const escHtml = (s) => String(s ?? '')
+  .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+// The client's site posts its contact form here. We log the enquiry (this is
+// the evidence the retainer is sold on), alert the owner immediately
+// (speed-to-lead), then forward to their own endpoint if they have one.
+// Native form POST — no JavaScript on the generated site, so the
+// self-contained invariant holds.
+async function handleFormCapture(req, res, token) {
+  const lead = db.leads.find((l) => l.capture?.token === token);
+  if (!lead) return json(res, 404, { error: 'Unknown form' });
+  const body = await readFormBody(req);
+
+  // Honeypot: bots fill hidden fields. Accept silently so they don't retry,
+  // but never record it as a real enquiry.
+  if (body._gotcha) return redirect(res, `/f/${token}/thanks`);
+
+  const enquiry = {
+    name: String(body.name || '').slice(0, 120),
+    contact: String(body.contact || '').slice(0, 160),
+    message: String(body.message || '').slice(0, 2000),
+  };
+  recordEvent(lead.id, 'form', { ...enquiry, source: 'website-form' });
+
+  // Speed-to-lead: whoever replies first wins the job. Alert the owner now.
+  // This is a transactional notification to OUR CLIENT about their own
+  // enquiry — not cold outreach to a prospect, which stays manual-only.
+  const notify = lead.capture?.notifyEmail;
+  if (notify && mailerStatus().configured) {
+    sendMail({
+      to: notify,
+      subject: `New enquiry from your website — ${enquiry.name || 'website visitor'}`,
+      text: [
+        `You have a new enquiry from ${lead.name}'s website.`,
+        '', `Name:    ${enquiry.name || '(not given)'}`,
+        `Contact: ${enquiry.contact || '(not given)'}`,
+        '', 'Message:', enquiry.message || '(none)',
+        '', 'Reply fast — the first business to respond usually wins the job.',
+      ].join('\n'),
+    }).catch((err) => console.error('[capture] owner alert failed:', err.message));
+  }
+
+  // Forward to the client's own form provider when they have one, so nothing
+  // they already rely on breaks.
+  const forward = lead.cta?.formEndpoint;
+  if (forward) {
+    fetch(forward, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ ...enquiry, _subject: `New enquiry from ${lead.name} website` }),
+    }).catch((err) => console.error('[capture] forward failed:', err.message));
+  }
+  redirect(res, `/f/${token}/thanks`);
+}
+
+function redirect(res, location) {
+  res.writeHead(303, { Location: location });
+  res.end();
+}
+
+function serveThanks(res, token) {
+  const lead = db.leads.find((l) => l.capture?.token === token);
+  const name = lead ? escHtml(lead.name) : 'the business';
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow"><title>Thank you</title>
+<style>body{font-family:'Segoe UI',system-ui,sans-serif;background:#f4f6f9;color:#141821;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;line-height:1.6}
+.card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;padding:42px 36px;max-width:440px;text-align:center}
+h1{font-size:1.5rem;margin:0 0 10px}p{color:#5c6472;margin:0}</style></head>
+<body><div class="card"><h1>Thanks — we've got it.</h1>
+<p>Your message has reached ${name}. Someone will get back to you shortly.</p></div></body></html>`);
+}
+
+// Provider-agnostic call webhook (Vapi, Twilio, CallRail, a forwarding
+// service). Any POST to this token URL logs one call against the client.
+async function handleCallWebhook(req, res, token) {
+  const lead = db.leads.find((l) => l.capture?.token === token);
+  if (!lead) return json(res, 404, { error: 'Unknown number' });
+  let body = {};
+  try { body = await readBody(req); } catch { /* some providers post form bodies */ }
+  const ev = recordEvent(lead.id, 'call', {
+    from: String(body.from || body.From || body.caller || '').slice(0, 40) || null,
+    durationSec: Number(body.durationSec || body.CallDuration || 0) || null,
+    source: 'tracked-number',
+  });
+  json(res, 200, { ok: true, eventId: ev.id });
+}
+
+// Manual logging, for operators using a plain forwarding number with no
+// webhook. One click in the dashboard = one real, timestamped call.
+async function handleLogCall(req, res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  const body = await readBody(req).catch(() => ({}));
+  const ev = recordEvent(lead.id, 'call', {
+    from: body.from ? String(body.from).slice(0, 40) : null,
+    source: 'manual',
+  });
+  json(res, 200, { ok: true, event: ev, rollup: monthlyRollup(lead.id, { economics: lead.economics || {} }) });
+}
+
+function handleAttribution(res, leadId) {
+  const lead = db.getLead(leadId);
+  if (!lead) return json(res, 404, { error: 'Lead not found' });
+  json(res, 200, { rollup: monthlyRollup(lead.id, { economics: lead.economics || {} }) });
 }
 
 function serveProposal(res, token) {
@@ -675,6 +834,9 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/proposal$/)) && req.method === 'POST') return await handleProposal(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/seo-report$/)) && req.method === 'POST') return handleSeoReport(res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/voice-agent$/)) && req.method === 'POST') return await handleVoiceAgent(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/attribution$/)) && req.method === 'GET') return handleAttribution(res, m[1]);
+    if ((m = p.match(/^\/api\/leads\/([\w-]+)\/log-call$/)) && req.method === 'POST') return await handleLogCall(req, res, m[1]);
+    if ((m = p.match(/^\/api\/hooks\/call\/([\w-]+)$/)) && req.method === 'POST') return await handleCallWebhook(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/client$/)) && req.method === 'POST') return await handleClientCreate(req, res, m[1]);
     if ((m = p.match(/^\/api\/leads\/([\w-]+)\/invoice$/)) && req.method === 'POST') return await handleInvoiceIssue(req, res, m[1]);
     if ((m = p.match(/^\/api\/invoices\/(\d+)\/paid$/)) && req.method === 'POST') return handleInvoicePaid(res, m[1]);
@@ -721,6 +883,8 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/sites\/([\w-]+)\/pack\.zip$/))) return await handlePackZip(res, m[1]);
     if ((m = p.match(/^\/proposals\/([\w-]+)\.html$/))) return serveProposal(res, m[1]);
     if ((m = p.match(/^\/reports\/([\w-]+)\.html$/))) return serveSeoReport(res, m[1]);
+    if ((m = p.match(/^\/f\/([\w-]+)\/thanks$/))) return serveThanks(res, m[1]);
+    if ((m = p.match(/^\/f\/([\w-]+)$/)) && req.method === 'POST') return await handleFormCapture(req, res, m[1]);
     if ((m = p.match(/^\/voice\/([\w-]+)\.html$/))) return serveVoicePack(res, m[1]);
     if ((m = p.match(/^\/invoices\/([\w-]+)\.html$/))) return serveInvoice(res, m[1]);
 

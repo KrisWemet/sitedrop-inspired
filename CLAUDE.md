@@ -84,6 +84,27 @@ Search with location `demo`, open a lead, enrich, generate, and screenshot.
   self-contained `<svg>`; `starRow(rating)` builds review stars;
   `industryIcon(industry)` maps to an accent glyph. Zero runtime dep — paths
   are baked in. Use sparingly (never the banned icon-tile-above-heading).
+- `lib/attribution.js` — the receipts that make the retainer defensible.
+  Append-only `data/leads.jsonl` (same integrity model as sent-log/invoices:
+  never rewritten, tolerant of a truncated final line). `recordEvent` logs
+  only things we actually observed — a `form` post the site captured or a
+  `call` on the tracked number. HONESTY: counts are FACTS; money is
+  `estimateValue` arithmetic on the CLIENT'S OWN `lead.economics`
+  ({avgJobValue, closeRate}), always labelled an estimate — no economics
+  means no money claim, no close rate means pipeline only (never a guessed
+  conversion), and `changePct` is null with no prior month rather than a
+  fake +100%. Never claim a channel we cannot observe.
+  Capture flow: `lead.capture` {token, enabled, trackedNumber, notifyEmail};
+  the generator points the form at `BASE_URL/f/<token>` (still a NATIVE form
+  POST — no JS on the site) and renders `trackedNumber` in place of the real
+  phone. `POST /f/:token` logs the enquiry, alerts the owner (speed-to-lead),
+  then forwards to their own `cta.formEndpoint` if set; the honeypot is
+  accepted-but-not-logged so spam never inflates a client's numbers. Calls
+  arrive via `POST /api/hooks/call/:token` (provider-agnostic) or a manual
+  dashboard button. NOTE: the owner alert is a TRANSACTIONAL notification to
+  our own client about their enquiry — it does not weaken the
+  "no prospect email is ever sent automatically" invariant, which still
+  governs cold outreach.
 - `lib/review-funnel.js` — the review-request page served at
   `/sites/:id/review.html` and shipped in the deploy pack. COMPLIANCE: no
   review gating — it offers the public Google-review link AND a private-

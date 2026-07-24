@@ -303,6 +303,25 @@ function drawLead(lead, opts = {}) {
         <div class="field" style="margin-top:10px"><label>Google review link (for the review funnel — from the business's Google profile "Ask for reviews")</label><input id="googleReviewUrl" placeholder="https://g.page/r/xxxx/review" value="${esc(lead.cta?.googleReviewUrl || '')}"></div>
         <button class="btn small ghost" id="ctaSaveBtn" style="margin-top:10px">Save lead-capture settings</button>
       </details>
+      <details class="conv-box" ${lead.capture?.enabled ? 'open' : ''}>
+        <summary>Lead tracking &amp; proof of value ${lead.capture?.token ? '· on' : ''}</summary>
+        <p class="hint" style="margin:8px 0">This is what makes the retainer stick: real, logged proof of what the site produced. The contact form posts through your server (still no JavaScript on the site), and a tracked number that forwards to their real line turns calls into evidence. Enquiry counts are facts; the money figure is arithmetic on the numbers you enter below, labelled as an estimate.</p>
+        <label class="hint" style="display:block;margin:6px 0"><input type="checkbox" id="capEnabled" ${lead.capture?.enabled ? 'checked' : ''}> Capture enquiries for this client</label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="field"><label>Tracked number (forwards to their line)</label><input id="capTracked" placeholder="(555) 900-1234" style="width:190px" value="${esc(lead.capture?.trackedNumber || '')}"></div>
+          <div class="field"><label>Alert the owner at</label><input id="capNotify" placeholder="owner@business.com" style="width:210px" value="${esc(lead.capture?.notifyEmail || '')}"></div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+          <div class="field"><label>Their average job value</label><input id="ecoAvg" type="number" min="0" placeholder="450" style="width:130px" value="${esc(lead.economics?.avgJobValue || '')}"></div>
+          <div class="field"><label>Their close rate (%)</label><input id="ecoClose" type="number" min="1" max="100" placeholder="40" style="width:120px" value="${esc(lead.economics?.closeRate || '')}"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn small ghost" id="capSaveBtn">Save tracking settings</button>
+          ${lead.capture?.token ? `<button class="btn small secondary" id="logCallBtn">＋ Log a call</button>` : ''}
+        </div>
+        ${lead.capture?.token ? `<p class="hint" style="margin-top:10px">Call webhook (point your provider here): <code>POST /api/hooks/call/${esc(lead.capture.token)}</code></p>` : ''}
+        <div id="attrArea"></div>
+      </details>
       <details class="conv-box" ${(lead.proof && Object.values(lead.proof).some(Boolean)) ? 'open' : ''}>
         <summary>Trust &amp; proof — what makes the hero convert</summary>
         <p class="hint" style="margin:8px 0">These are the specifics that turn a generic page into a persuasive one. They appear in the hero trust bar and under the call button. Only fill in what the <strong>owner can stand behind</strong> — every field is optional and blank ones simply don't render. Regenerate after saving.</p>
@@ -481,6 +500,56 @@ function drawLead(lead, opts = {}) {
       btn.textContent = 'Save lead-capture settings';
       alert('Could not save: ' + err.message);
     }
+  });
+
+  async function refreshAttribution() {
+    const area = document.getElementById('attrArea');
+    if (!area || !lead.capture?.token) return;
+    try {
+      const { rollup: r } = await api(`/api/leads/${lead.id}/attribution`);
+      const money = r.value
+        ? `<strong>${r.value.booked !== null ? '$' + r.value.booked.toLocaleString() + ' est. booked' : '$' + r.value.pipeline.toLocaleString() + ' pipeline'}</strong>`
+        : '<span class="hint">add an average job value to estimate worth</span>';
+      area.innerHTML = `<div class="notice" style="margin-top:12px">
+        <b>${r.total}</b> enquiries this month — ${r.calls} calls, ${r.forms} form messages · ${money}
+        ${r.changePct !== null ? ` · ${r.changePct >= 0 ? '+' : ''}${r.changePct}% vs last month` : ''}
+        <span class="hint"> (${r.lifetime} lifetime)</span></div>`;
+    } catch { /* no events yet */ }
+  }
+  refreshAttribution();
+
+  document.getElementById('capSaveBtn')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget;
+    btn.textContent = 'Saving…';
+    try {
+      await patch(`/api/leads/${lead.id}`, {
+        capture: {
+          enabled: document.getElementById('capEnabled').checked,
+          trackedNumber: document.getElementById('capTracked').value.trim(),
+          notifyEmail: document.getElementById('capNotify').value.trim(),
+        },
+        economics: {
+          avgJobValue: document.getElementById('ecoAvg').value.trim(),
+          closeRate: document.getElementById('ecoClose').value.trim(),
+        },
+      });
+      btn.textContent = '✓ Saved — regenerate to apply';
+      setTimeout(() => renderLead(lead.id), 900);
+    } catch (err) {
+      btn.textContent = 'Save tracking settings';
+      alert('Could not save: ' + err.message);
+    }
+  });
+
+  document.getElementById('logCallBtn')?.addEventListener('click', async (ev) => {
+    const from = prompt('Who called? (optional — a number or a note)') ?? null;
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    try {
+      await post(`/api/leads/${lead.id}/log-call`, from ? { from } : {});
+      await refreshAttribution();
+    } catch (err) { alert('Could not log the call: ' + err.message); }
+    btn.disabled = false;
   });
 
   document.getElementById('proofSaveBtn')?.addEventListener('click', async (ev) => {
